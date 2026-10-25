@@ -1,5 +1,8 @@
 # zpl-core
 
+[![PyPI](https://img.shields.io/pypi/v/zpl-core.svg)](https://pypi.org/project/zpl-core/)
+[![Python](https://img.shields.io/pypi/pyversions/zpl-core.svg)](https://pypi.org/project/zpl-core/)
+
 ZPL II 标签引擎。一份代码，三个使用者：
 
 - **[zebra-printer-mcp](https://github.com/benyshen/zebra-printer-mcp)** —— MCP 服务器外壳（9 个工具）
@@ -11,7 +14,7 @@ ZPL II 标签引擎。一份代码，三个使用者：
 ## 安装
 
 ```bash
-pip install zpl-core            # 生成、校验、发送、查状态——纯 stdlib
+pip install zpl-core            # 生成、校验、发送、查状态——纯 stdlib（PyPI，>=3.10）
 pip install zpl-core[render]    # + ZPL → PNG 离线预览（Pillow / segno / python-barcode）
 pip install zpl-core[ocr]       # + 照片 → ZPL（OpenCV / onnxruntime / zxing-cpp + PP-OCRv4 权重）
 pip install zpl-core[all]       # 全都要
