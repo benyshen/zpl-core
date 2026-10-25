@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import subprocess
 import sys
+import importlib as importlib_module
 from pathlib import Path
 
 FAILED = []
@@ -23,7 +24,7 @@ from zpl_core import builder, knowledge, transport, xlsx_batch  # noqa: E402
 
 # ---------------------------------------------------------------- 版本与数据
 
-check("version is 0.1.0", zpl_core.__version__ == "0.1.0", zpl_core.__version__)
+check("version is 0.1.1", zpl_core.__version__ == "0.1.1", zpl_core.__version__)
 
 data_dir = Path(zpl_core.DATA_DIR)
 check("data dir sits inside the package",
@@ -34,12 +35,23 @@ cmds = knowledge.known_commands()
 check("catalog loads 253 commands", len(cmds) == 253, str(len(cmds)))
 
 ocr_dir = data_dir / "ocr"
+
+
+def _size_on_disk(name: str) -> int:
+    """文本资产按行尾归一后量——core.autocrlf=true 的 Windows 工作区里 txt 是 CRLF，
+    拿字节数硬比会在平台间打架（同一份 git blob，LF 26,249 / CRLF 32,871）。"""
+    blob = (ocr_dir / name).read_bytes()
+    if not name.endswith((".onnx",)):
+        blob = blob.replace(b"\r\n", b"\n")
+    return len(blob)
+
+
 for f, size in (("ch_PP-OCRv4_det_infer.onnx", 4745517),
                 ("ch_PP-OCRv4_rec_infer.onnx", 10857958),
                 ("ppocr_keys_v1.txt", 26249)):
     got = ocr_dir / f
-    check(f"ocr asset {f}", got.exists() and got.stat().st_size == size,
-          f"{got.stat().st_size if got.exists() else 'missing'} bytes")
+    actual = _size_on_disk(f) if got.exists() else -1
+    check(f"ocr asset {f}", actual == size, f"{actual if actual >= 0 else 'missing'} bytes")
 
 # ---------------------------------------------------------------- 懒加载边界
 
@@ -86,6 +98,35 @@ job = xlsx_batch.plan_specs(rows, name_col=0, id_col=1,
                             width_mm=50, height_mm=30, skip_header=False)
 check("xlsx_batch plans one label per row", len(job) == 2, str(len(job)))
 
+
+# 缺 extra 时的报错要能直接复制粘贴去装
+import types as _types
+_real_import = zpl_core.importlib.import_module
+
+
+def _no_pil(name, pkg=None):
+    if name.endswith(".render"):
+        raise ModuleNotFoundError("No module named 'PIL'", name="PIL")
+    return _real_import(name, pkg)
+
+
+zpl_core.__dict__.pop("render", None)
+zpl_core.importlib = _types.SimpleNamespace(import_module=_no_pil)
+try:
+    getattr(zpl_core, "render")
+    msg = ""
+except ImportError as exc:
+    msg = str(exc)
+finally:
+    zpl_core.importlib = importlib_module
+    zpl_core.__dict__.pop("render", None)
+
+check("missing extra names the extra", "[render]" in msg, msg[:80] or "no error raised")
+check("missing extra gives a copyable command",
+      'pip install "zpl-core[render]"' in msg, msg[:80] or "no error raised")
+check("missing extra keeps the original cause",
+      "PIL" in msg, msg[:80] or "no error raised")
+
 # ---------------------------------------------------------------- 干净度
 
 src = Path(zpl_core.__file__).parent
@@ -94,7 +135,7 @@ check("no zebra_mcp references left in the package", not hits, ", ".join(hits) o
 
 out = subprocess.run([sys.executable, "-c", "import zpl_core; print(zpl_core.__version__)"],
                      capture_output=True, text=True)
-check("fresh interpreter imports the package", out.returncode == 0 and "0.1.0" in out.stdout,
+check("fresh interpreter imports the package", out.returncode == 0 and "0.1.1" in out.stdout,
       (out.stdout or out.stderr).strip()[:80])
 
 print()
