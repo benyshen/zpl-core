@@ -65,7 +65,7 @@ def _params(args: str, letters: str) -> dict:
     if not args:
         return out
     parts = args.split(",")
-    for i, letter in enumerate(letters):
+    for i, letter in enumerate(builder.split_letters(letters)):
         if i < len(parts) and parts[i] != "":
             out[letter] = parts[i]
     return out
@@ -127,6 +127,7 @@ def render(zpl: str, *, dpi: int = 203, scale: int = 1, out: str | Path | None =
 
     x = y = 0
     fh = fw = None
+    orient = "N"        # ^A/^B orientation of the field being built (N/R/I/B)
     by_mw, by_ratio, by_h = builder.BY_W, builder.BY_R, builder.BY_H
     fb = {}
     invert = False
@@ -149,7 +150,16 @@ def render(zpl: str, *, dpi: int = 203, scale: int = 1, out: str | Path | None =
             p = args.split(",")
             # ^A0N,h,w  /  ^A@N,h,w,file  — orientation is the letter inside args[0]
             first = p[0] if p else ""
-            rest = first[1:] if first[:1].isalpha() else first
+            # "0N" (^A0N,h,w) or "N" (^A@N,h,w,file): the letter is the orientation
+            if first[:1] == "@":                      # ^A@N,h,w,d:font
+                orient = (first[1:2] or "N").upper()
+                rest = ""
+            elif first[:1].isalpha():
+                orient = first[:1].upper()
+                rest = first[1:]
+            else:                                     # ^A0N,h,w (font 0 then letter)
+                orient = (first[1:2] or "N").upper() if len(first) > 1 else "N"
+                rest = first
             vals = ([rest] if rest else []) + p[1:]
             nums = [int(v) if v.strip().isdigit() else None for v in vals]
             fh = nums[0] if nums else None
@@ -177,13 +187,14 @@ def render(zpl: str, *, dpi: int = 203, scale: int = 1, out: str | Path | None =
             fb = {}
             invert = False
             fh = fw = None
+            orient = "N"
         elif cmd == "FD":
             data = args.strip()
             if pending and pending.get("kind") == "text":
-                _render_text_block(img, x, y, data, fh, fw, fb, drawn, warnings)
+                _render_text_block(img, x, y, data, fh, fw, fb, drawn, warnings, orient)
             elif pending and pending.get("kind") == "barcode":
-                _render_barcode(draw, x, y, data, pending, by_mw, by_h,
-                                drawn, approximated)
+                _render_barcode(img, draw, x, y, data, pending, by_mw, by_h,
+                                drawn, approximated, pending.get("orient", "N"), warnings)
             pending = None
         elif cmd in _CMDS:
             sym = _CMDS[cmd]
@@ -193,13 +204,15 @@ def render(zpl: str, *, dpi: int = 203, scale: int = 1, out: str | Path | None =
                 continue
             p = {**spec["d"], **_params(args, spec["letters"])}   # manual defaults first
             h = int(p.get("h") or by_h or 10)
+            o_letter = spec.get("orient")
             pending = {"kind": "barcode", "sym": sym, "spec": spec, "params": p,
-                       "height": h, "cmd": cmd}
+                       "height": h, "cmd": cmd,
+                       "orient": (p.get(o_letter) or "N").upper() if o_letter else "N"}
         elif cmd == "GB":
             p = args.split(",")
             w = int(p[0] or 0)
             hh = int(p[1] or 0)
-            t = int(p[2] or 1) if len(p) > 2 and p[2] else 1
+            t = int(p[2]) if len(p) > 2 and p[2] else builder.GB_THICKNESS_DEFAULT
             color = (p[3] or "B").upper()
             box = [x, y, x + w - 1, y + hh - 1]
             if color == "W":
@@ -213,7 +226,7 @@ def render(zpl: str, *, dpi: int = 203, scale: int = 1, out: str | Path | None =
             p = args.split(",")
             w = int(p[0] or 0)
             hh = int(p[1] or 0)
-            t = int(p[2] or 1) if len(p) > 2 and p[2] else 1
+            t = int(p[2]) if len(p) > 2 and p[2] else builder.GB_THICKNESS_DEFAULT
             draw.ellipse([x, y, x + w, y + hh], outline="black", width=max(1, t))
             drawn.append({"type": "circle", "dots": [x, y, x + w, y + hh]})
         elif cmd == "XGR":
@@ -264,15 +277,54 @@ def _ink_width(probe, text, font):
     return (box[2] - box[0]) * _WIDTH_SCALE
 
 
-def _render_text_block(img, x, y, data, fh, fw, fb, drawn, warnings):
+def _paste_rotated(img, layer, x: int, y: int, orient: str, warnings=None) -> None:
+    """Paste a field layer on the label with the ZPL field rotation applied.
+
+    ^A/^B orientation rotates the field about its field origin (^FO): N keeps the
+    box at (x,y), R makes the run go down-right, I ends at the origin (reads
+    upside down), B runs up-left. Before 0.2.4 the renderer dropped the letter
+    entirely, so a rotated barcode was drawn flat and its neighbours looked
+    free when they were not. Offsets for I/B use the unrotated layer size, which
+    matches "the box ends at the origin" for 180/270 degrees.
+    """
+    w0, h0 = layer.size
+    if orient == "R":
+        layer, pos = layer.transpose(Image.ROTATE_270), (x, y)
+    elif orient == "I":
+        layer, pos = layer.transpose(Image.ROTATE_180), (x - w0, y - h0)
+    elif orient == "B":
+        layer, pos = layer.transpose(Image.ROTATE_90), (x - w0, y)
+    else:
+        pos = (x, y)
+    mask = ImageOps.invert(layer.convert("L"))     # white background -> transparent
+    if warnings is not None:
+        l, t = pos
+        r, b = l + layer.width, t + layer.height
+        if l < 0 or t < 0 or r > img.width or b > img.height:
+            warnings.append(f"field at ^{'FO'} {x},{y} orientation {orient} extends "
+                            f"outside the label ({l},{t})-({r},{b} vs "
+                            f"{img.width}x{img.height})")
+    img.paste((0, 0, 0), pos, mask)
+
+
+def _crop_ink(layer):
+    """Trim a layer to its ink; returns (layer, note) — falls back to the layer."""
+    box = ImageOps.invert(layer.convert("L")).getbbox()
+    return layer.crop(box) if box else layer
+
+
+def _render_text_block(img, x, y, data, fh, fw, fb, drawn, warnings,
+                      orient: str = "N"):
     h = fh or 20
     font = _fit_font(h)
     max_w = fb.get("width")
     probe = ImageDraw.Draw(img)
     wrap_at = max_w / _WIDTH_SCALE if max_w else None
     lines = _wrap(data, font, wrap_at, probe)
-    lh = fb.get("lh") or int(round(h * 1.2))
+    # ^FB p.186: c adds/removes space per line, so line pitch = font height + c
+    lh = h + int(fb.get("lh") or 0) if fb.get("lh") is not None else int(round(h * 1.2))
     align = fb.get("align", "L")
+    placed = []
     for idx, line in enumerate(lines):
         tw = _ink_width(probe, line, font)
         dx = x
@@ -280,7 +332,21 @@ def _render_text_block(img, x, y, data, fh, fw, fb, drawn, warnings):
             dx = x + (max_w - tw) / 2
         elif max_w and align == "R":
             dx = x + max_w - tw
-        _blit_text(img, (int(dx), int(y + idx * lh)), line, font)
+        placed.append((int(dx), int(y + idx * lh), line))
+
+    if orient == "N":
+        for dx, dy, line in placed:
+            _blit_text(img, (dx, dy), line, font)
+    else:
+        pad = 2
+        asc, desc = font.getmetrics()
+        width = max(int(_ink_width(probe, ln, font)) for _, _, ln in placed) + 2 * pad
+        height = (len(placed) - 1) * lh + asc + desc + 2 * pad
+        layer = Image.new("L", (max(1, width), max(1, height)), 255)
+        ld = ImageDraw.Draw(layer)
+        for dx, dy, line in placed:
+            ld.text((dx - x + pad, dy - y + pad), line, font=font, fill=0)
+        _paste_rotated(img, _crop_ink(layer), x, y, orient, warnings)
     full = _ink_width(probe, data, font)
     if max_w and full > max_w:
         warnings.append(f"text {data!r} is {int(full)} dots wide, wider than its "
@@ -289,7 +355,17 @@ def _render_text_block(img, x, y, data, fh, fw, fb, drawn, warnings):
                   "width": int(round(full)), "lines": len(lines)})
 
 
-def _render_barcode(draw, x, y, data, pend, by_mw, by_h, drawn, approximated):
+def _render_barcode(img, draw, x, y, data, pend, by_mw, by_h, drawn, approximated,
+                    orient: str = "N", warnings=None):
+    if orient != "N":
+        # draw on its own layer, then rotate about the field origin
+        layer = Image.new("RGB", (max(1, 20 * max(1, int(by_mw)) * max(1, len(data)) + 60),
+                                  max(1, int(pend["height"]) + 60)), "white")
+        ld = ImageDraw.Draw(layer)
+        _render_barcode(layer, ld, 2, 2, data, pend, by_mw, by_h, drawn, approximated,
+                        "N", warnings)
+        _paste_rotated(img, _crop_ink(layer), x, y, orient, warnings)
+        return
     sym, params, h = pend["sym"], pend["params"], pend["height"]
     interpret = (params.get("f", "N") or "N").upper() == "Y"
 

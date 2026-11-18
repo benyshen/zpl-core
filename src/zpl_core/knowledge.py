@@ -8,12 +8,34 @@ Link-OS SGD names (techdocs.zebra.com/link-os).
 """
 from __future__ import annotations
 
+import json
 import re
 
 from .paths import DATA_DIR, data_file
 
 DATA = DATA_DIR
 MANUAL_TXT = data_file("zpl_manual_full.txt")
+
+# ---------------------------------------------------------------------------
+# commands.json — generated from the manual: {command: {page, name, params}}
+#
+# It is the authority for *page numbers and Format-line parameters*. The prose
+# in COMMAND_NOTES below carries defaults, ranges and gotchas, and every page
+# number in it is overwritten at import by the page in commands.json — the two
+# can no longer drift apart (0.1.x had ^LS p.322 vs the manual's p.296, ^LT
+# p.335 vs 297, ^PM p.318 vs 319, ^PO p.308 vs 322: the notes were wrong).
+# ---------------------------------------------------------------------------
+COMMANDS_FILE = data_file("commands.json")
+
+
+def _load_commands() -> dict:
+    try:
+        return json.loads(COMMANDS_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+COMMANDS: dict = _load_commands()
 
 # ---------------------------------------------------------------------------
 # Command catalog parsed from the manual text
@@ -32,8 +54,13 @@ def known_commands() -> set[str]:
     if _KNOWN is not None:
         return _KNOWN
     _KNOWN = set()
-    # preferred: the static catalog (repo ships this file; the full manual text
-    # is a copyrighted extraction and is NOT committed — see README restore table)
+    # preferred: commands.json, generated from the manual's own command sections
+    # (page + Format line per command). It lists only real commands, unlike the
+    # old token scrape, which needed "^A0", "^AB", "^2", "~0" and 25 more
+    # non-commands just so that "^A0N,30" would not read as UNKNOWN_CMD.
+    if COMMANDS:
+        _KNOWN = set(COMMANDS)
+        return _KNOWN
     try:
         _KNOWN = {t for t in CATALOG_TXT.read_text(encoding="utf-8").split() if t}
         if _KNOWN:
@@ -66,11 +93,18 @@ COMMAND_NOTES: dict[str, dict] = {
     "^FT": {"page": 205, "name": "Field Origin, Text Position", "syntax": "^FT x, y",
             "defaults": {"x": 0, "y": 0}, "range": "0-32000 dots",
             "notes": "Position relative to the end of the previous text field — use for flowing text fields."},
-    "^A": {"page": 60, "name": "Scalable font", "syntax": "^A font, [height, [width]]",
-           "defaults": {"font": "0", "height": 24, "width": 24}, "range": "height/width 10-32000 dots; font 0-9 A-Z",
-           "notes": "Scalable bitmapped fonts; font A-Z are downloaded fonts (or TrueType via ^CWF). ^A0 is the default."},
-    "^CF": {"page": 154, "name": "Set Default Font", "syntax": "^CF font, [height, [width]]",
-            "defaults": {"font": 0}, "notes": "Default for all following text fields."},
+    "^A": {"page": 60, "name": "Scalable/Bitmapped Font", "syntax": "^Afo,h,w",
+           "defaults": {"f": "last ^CF value (power-up A)", "o": "last ^FW value",
+                        "h": "last ^CF value (power-up 9)", "w": "last ^CF value (power-up 5)"},
+           "range": "scalable h/w 10-32000 dots; bitmapped h/w are 1-10x multiples of the font matrix; f = A-Z and 0-9",
+           "notes": "Font f is required for the field but defaults to the ^CF font. Font 0 is the "
+                    "scalable font, A-Z/0-9 are resident or downloaded. Bitmapped fonts (A-H) only "
+                    "accept multiples of their matrix, so an arbitrary dot size needs font 0 or ^A@."},
+    "^CF": {"page": 154, "name": "Change the Alphanumeric Default Font", "syntax": "^CFf,h,w",
+            "defaults": {"f": "A (power-up)", "h": 9, "w": 5},
+            "range": "f A-Z/0-9; h,w 0-32000",
+            "notes": "Default for every following alphanumeric field. Defining only h or w keeps the "
+                     "other proportional to the font matrix."},
     "^FD": {"page": 190, "name": "Field Data", "syntax": "^FD data",
             "notes": "Prints data. ^, ~, ^FS etc. terminate the field; hex-escape them with ^FH (default indicator _) or use ^FH<indicator>."},
     "^FS": {"page": 251, "name": "Field Terminator", "syntax": "^FS",
@@ -106,64 +140,81 @@ COMMAND_NOTES: dict[str, dict] = {
     "^LL": {"page": 294, "name": "Label Length", "syntax": "^LL length",
             "defaults": {"length": 0}, "range": "1-32000 dots",
             "notes": "Media length in dots along the feed direction."},
-    "^LH": {"page": 213, "name": "Label Home", "syntax": "^LH x, y", "defaults": {"x": 0, "y": 0},
+    "^LH": {"page": 293, "name": "Label Home", "syntax": "^LHx,y", "defaults": {"x": 0, "y": 0},
             "notes": "Sets the field-origin offset for the whole label."},
-    "^PM": {"page": 318, "name": "Mirror Print", "syntax": "^PM Y|N", "defaults": {"value": "N"},
-            "notes": "Flips the image left-right for iron-on transfers."},
-    "^PO": {"page": 308, "name": "Invert Print", "syntax": "^PO Y|N", "defaults": {"value": "N"},
-            "notes": "Reverses black/white (white on black)."},
+    "^PM": {"page": 319, "name": "Mirror Image", "syntax": "^PMa", "defaults": {"a": "N"},
+            "notes": "Mirrors the whole label left-right; stays active until ^PMN or power-off."},
+    "^PO": {"page": 322, "name": "Print Orientation", "syntax": "^POa", "defaults": {"a": "N"},
+            "notes": "Inverts the label 180 degrees. Values are N (normal) and I (invert) — Y is NOT valid. "
+                     "It mirrors x,y coordinates, so a different ^LH may be needed to bring the print back."},
     "^MD": {"page": 301, "name": "Set Print Darkness", "syntax": "^MD value",
             "defaults": {"value": 0}, "range": "-30 to +30 (or 0-5 depending on model)",
             "notes": "Adjusts print darkness from the printer default; positive darkens."},
-    "^PR": {"page": 262, "name": "Print Rate", "syntax": "^PR print speed [slew speed [backfeed speed]]",
-            "defaults": {"print speed": 2, "slew speed": 2, "backfeed speed": 2},
-            "range": "model dependent (e.g. 1-6 ips on many desktop printers), 1=slowest",
-            "notes": "Three optional speeds in inches per second; slew speed affects barcode skew."},
-    "^PQ": {"page": 324, "name": "Set Print Quantity", "syntax": "^PQ qty, [pause, [after]]",
-            "defaults": {"qty": 1, "pause": 0, "after": 0}, "range": "qty 1-99999999",
-            "notes": "Prints the whole format N times. pause/after control a separate quantity reset."},
-    "^LT": {"page": 335, "name": "Label Top", "syntax": "^LT offset", "defaults": {"offset": 0},
-            "range": "0-1000 dots",
-            "notes": "Feeds the top of the label a distance before printing (position compensation)."},
-    "^MN": {"page": 307, "name": "Media Tracking", "syntax": "^MN mode, [black mark offset]",
-            "defaults": {"mode": "N", "offset": 0}, "range": "mode N/Y/W/M/B/A",
-            "notes": "N=continuous, Y=web/label gap, M=mark with next-line offset, B=black mark."},
-    "^MM": {"page": 305, "name": "Print Method", "syntax": "^MM mode, [media loss]",
-            "defaults": {"mode": "T", "media loss": "N"}, "range": "mode T/P/R/A/K (Tear/Cut/Rewind/Auto/Knitpick)",
-            "notes": "Method of presenting printed labels."},
+    "^PR": {"page": 326, "name": "Print Rate", "syntax": "^PRp,s,b",
+            "range": "1-12 (ips: 1=25.4 mm/s ... 12=304.8 mm/s) plus aliases A=2, B=3, C=4, D=6, E=8",
+            "notes": "Print, slew and backfeed speed in inches per second; model dependent. Some models drop "
+                     "back to their default speed at power-off."},
+    "^PQ": {"page": 324, "name": "Print Quantity", "syntax": "^PQq,p,r,o,e",
+            "defaults": {"q": 1, "p": 0, "r": 0, "o": "N", "e": "Y"},
+            "range": "q,p 1-99999999; r 0-99999999; o = override pause N/Y; e = cut on error label N/Y",
+            "notes": "Prints the whole format q times; p pauses/cuts every p labels; r replicates each serial "
+                     "number; e controls cutting after a voided RFID label."},
+    "^LT": {"page": 297, "name": "Label Top", "syntax": "^LTx",
+            "range": "all printers -120..120 dots; 600 dpi -240..240; HC100 0..120",
+            "notes": "Moves the whole format up/down relative to the top edge; negative moves it toward the top. "
+                     "A value must be given or the command is ignored."},
+    "^MN": {"page": 307, "name": "Media Tracking", "syntax": "^MNa,b",
+            "defaults": {"b": 0},
+            "range": "a = N continuous, Y web sensing, W web sensing, M mark sensing, A auto-detect, "
+                     "V continuous variable length; b = -120..283 dots (-240..566 at 600 dpi)",
+            "notes": "There is no 'B' media type — black mark is M. b is only used when a = M."},
+    "^MM": {"page": 305, "name": "Print Mode", "syntax": "^MMa,b",
+            "defaults": {"a": "model dependent", "b": "N"},
+            "range": "a = T tear, P peel, R rewind, A applicator, C cutter, D delayed cutter, F RFID, "
+                     "L/U reserved, K kiosk; b = prepeel select N/Y",
+            "notes": "b is the prepeel select, not a media-loss flag. Values are model dependent and the "
+                     "command is ignored if the printer does not support the option."},
     "^FB": {"page": 186, "name": "Field Block", "syntax": "^FB width, [lines, [line height, [alignment, [hanging indent]]]]",
-            "defaults": {"lines": 1, "line height": 0, "alignment": "L", "hanging indent": 0},
-            "range": "lines 1-9999; alignment L/C/R/J",
-            "notes": "Word-wrap field data to width (dots) at the ^FO/^FT position; sits between ^A and ^FD."},
-    "^FR": {"page": 236, "name": "Field Reverse", "syntax": "^FR",
-            "notes": "Invert the field (white on black) until ^FS or the next ^FR."},
-    "^CI": {"page": 155, "name": "Code Page Identifier", "syntax": "^CI codepage",
-            "defaults": {"codepage": 437},
-            "range": "437,850,1252 (Latin1), 936 (Simplified Chinese GB2312), 950 (Traditional Chinese Big5), "
-                     "1250-1257 (Windows regional), 28 (Unicode, ZPL II mode); 737 Greek, 865 Nordic etc.",
-            "notes": "Single-byte pages remap bytes 128-255 to glyphs in the ROM fonts. CJK printing: send UTF-8 "
-                     "bytes with ^CI28 and call a TrueType CJK font by name via ^A@ — e.g. ZR668 ships resident "
-                     "E:SIMSUN.TTF (SimSun) and E:HANS.TTF in flash (verified on ZR668-200dpi V86.20.21Z); ^CI936 "
-                     "with GB2312/GBK bytes also works with fonts 15/16 (ZT230, ZE500, Xi4, ZM400 etc.). "
-                     "UTF-8/UTF-16 bytes can also be sent directly with ^CI28 on most Link-OS printers."},
+            "defaults": {"b": 1, "c": 0, "d": "L", "e": 0},
+            "range": "a 0-label width; b 1-9999; c -9999..9999; d L/C/R/J; e 0-9999; data <= 3K",
+            "notes": "Word-wrap field data to width (dots) at the ^FO/^FT position; sits between ^A and ^FD. "
+                     "c ADDS or REMOVES space per line (negative tightens), it is not a line height. "
+                     "a smaller than the font width prints nothing. Escapes: \\& = CR/LF, \\(*) = soft hyphen."},
+    "^FR": {"page": 203, "name": "Field Reverse Print", "syntax": "^FR",
+            "notes": "Reverses one field (white over black). It applies to a single field, so it has to be "
+                     "issued for each field; ^LR does it for the whole label."},
+    "^CI": {"page": 155, "name": "Change International Font/Encoding",
+            "syntax": "^CIa,s1,d1,s2,d2,...",
+            "defaults": {"a": "0 (power-up)"},
+            "range": "a = 0-13 (Zebra CP850 regional sets), 17 (deprecated UCS-2 BE), 24 (single-byte Asian), "
+                     "26 (multibyte Asian with ASCII transparency), 27 (Zebra CP1252), 28/29/30 (Unicode UTF-8 / "
+                     "UTF-16BE / UTF-16LE), 31 (CP1250, G-Series), 33-36 (CP1251/1253/1254/1255); "
+                     "18-23 and 25 reserved. s/d pairs remap characters (0-255), up to 256 pairs.",
+            "notes": "p.156-157 lists the accepted values: there is NO 936 or 950 code page in ZPL — Chinese is "
+                     "^CI28 (UTF-8) with a CJK-capable font, or ^CI24/^CI26 for the Asian single/multibyte pages. "
+                     "The s,d pairs let you remap glyph positions (a = 0-13 only). CJK in practice: send UTF-8 with "
+                     "^CI28 and call a TrueType font by name with ^A@ — e.g. ZR668 ships E:SIMSUN.TTF and "
+                     "E:HANS.TTF in flash (verified on ZR668-200dpi V86.20.21Z)."},
     "^A@": {"page": 62, "name": "Scalable/Downloadable Font by Name", "syntax": "^A@ orientation, [height, [width, [drive:font.ext]]]",
             "defaults": {"orientation": "N", "drive": "R:"},
             "range": "drive R/E/B/A; ext .FNT .TTF .TTE; h/w 10-32000 dots (scalable)",
             "notes": "Calls a font by full name, e.g. ^A@N,28,28,E:SIMSUN.TTF. The chosen font carries over to "
                      "subsequent ^A@ without a name. Resident flash fonts listed via the printer web /dir page "
                      "or ~DY directory query. Pair with ^CI28 (UTF-8) for CJK."},
-    "^GB": {"page": 210, "name": "Graphic Box", "syntax": "^GB width, [height, [thickness, [color, [corner rounding]]]]",
-           "defaults": {"width": 1, "height": 1, "thickness": 1, "color": "B"}, "range": "1-32000 dots",
-           "notes": "Border box (thickness 0 = solid fill); colors B black, W white, G gray (models dependent)."},
-    "^GC": {"page": 212, "name": "Graphic Circle", "syntax": "^GC diameter, [thickness, [color]]",
-           "defaults": {"diameter": 1, "thickness": 1, "color": "B"}, "range": "3-4095 dots",
-           "notes": "Circle border (or filled when thickness = radius)."},
-    "^LS": {"page": 322, "name": "Shift Left", "syntax": "^LS shift", "defaults": {"shift": 0},
-            "range": "0-999 dots", "notes": "Global horizontal print shift (position alignment)."},
+    "^GB": {"page": 210, "name": "Graphic Box", "syntax": "^GBw,h,t,c,r",
+           "defaults": {"t": 1, "c": "B", "r": 0}, "range": "w,h = t-32000; t 1-32000; r 0-8",
+           "notes": "Same command draws boxes and lines. Omit w/h and you get a solid box the size of t "
+                    "(thickness 0 fills). Colors in the manual are B (black) and W (white) only. "
+                    "r is the degree of corner rounding, 0-8."},
+    "^GC": {"page": 212, "name": "Graphic Circle", "syntax": "^GCd,t,c",
+           "defaults": {"d": 3, "t": 1, "c": "B"}, "range": "d 3-4095 (larger becomes 4095); t 2-4095",
+           "notes": "Circle border, thickness extends inward; a thickness equal to the radius fills it."},
+    "^LS": {"page": 296, "name": "Label Shift", "syntax": "^LSa",
+            "defaults": {"a": 0}, "range": "-9999 to 9999 dots",
+            "notes": "Shifts every field position left/right; the manual's formula is Z-130 ^LHx + ^FOx = ^LSa. "
+                     "Negative values are allowed; it must be issued before the first ^FS of the format."},
     "^FW": {"page": 280, "name": "Field Orientation", "syntax": "^FW N|R|I|B", "defaults": {"orientation": "N"},
             "notes": "Default field rotation for following text/barcode fields (some 2D codes ignore it)."},
-    "^LH": {"page": 213, "name": "Label Home", "syntax": "^LH x, y", "defaults": {"x": 0, "y": 0},
-            "notes": "Global offset applied to ^FO field origins."},
     "^OM": {"page": 298, "name": "Origin Set", "syntax": "^OM value", "defaults": {"value": 0},
             "notes": "Field-origin origin mode (0=upper left, 1=lower left, 2=lower right, 3=upper right)."},
     "^XG": {"page": 372, "name": "Graphic Field (stored)", "syntax": "^XG name, [color, [magnification]]",
@@ -191,11 +242,13 @@ COMMAND_NOTES: dict[str, dict] = {
             "notes": "Begins storing a format to memory; ends with ^END. Run outside ^XA/^XZ."},
     "^CD": {"page": 346, "name": "Capture Format", "syntax": "^CD name, [device]",
             "notes": "Stores the format buffer as a named .FMT (device E/R)."},
-    "^PR": {"page": 262, "name": "Print Rate", "syntax": "^PR print speed [slew speed [backfeed speed]]"},
 }
 
 BARCODE_NOTES: dict[str, dict] = {
-    "code128": {"cmd": "^BC", "page": 94, "data": "ASCII; auto check digit unless e=N set", "notes": "subsets A/B/C auto; mode A optimizes"},
+    "code128": {"cmd": "^BC", "page": 94, "data": "ASCII; Mod 103 check digit is always present",
+                "notes": "Mode m: N none, U UCC Case (data forced to 19 digits), A automatic (printer picks "
+                         "the subset), D UCC/EAN mode — starts in the right subset, emits FNC1 before the AIs "
+                         "and keeps the parentheses in the human-readable line"},
     "code39": {"cmd": "^B3", "page": 70, "data": "0-9 A-Z - . $ / + % space", "notes": "check digit optional"},
     "code93": {"cmd": "^BA", "page": 87, "data": "full ASCII", "notes": ""},
     "i2of5": {"cmd": "^B2", "page": 68, "data": "digits, even count", "notes": "count option for required length"},
@@ -207,25 +260,46 @@ BARCODE_NOTES: dict[str, dict] = {
     "micropdf417": {"cmd": "^BF", "page": 111, "data": "full ASCII",
                     "notes": "Format ^BFo,h,m — m is the mode 0-33, not PDF417's s/c/r"},
     "codabar": {"cmd": "^BK", "page": 118, "data": "0-9 - . , $ / + A-D", "notes": "start/stop A-D"},
-    "msi": {"cmd": "^BM", "page": 122, "data": "digits", "notes": "check modes A/B/C/D"},
+    "msi": {"cmd": "^BM", "page": 122, "data": "digits",
+            "notes": "Format ^BMo,e,h,f,g,e2: e = check digit selection (A none, B 1 Mod 10, C 2 Mod 10, "
+                     "D 1 Mod 11 + 1 Mod 10, default B); e2 = insert the check digit into the "
+                     "interpretation line (N/Y, default N)"},
     "plessey": {"cmd": "^BP", "page": 126, "data": "0-9 A-F", "notes": ""},
     "logmars": {"cmd": "^BL", "page": 120, "data": "Code 39 subset, uppercased; Mod 43 check digit",
                 "notes": "Format ^BLo,h,g — DoD/LOGMARS application of Code 39; g is the line ABOVE the symbol, there is no f"},
     "industrial2of5": {"cmd": "^BI", "page": 114, "data": "digits", "notes": "continuous numeric, not self-checking"},
     "std2of5": {"cmd": "^BJ", "page": 116, "data": "digits", "notes": ""},
-    "ean13": {"cmd": "^BE", "page": 109, "data": "12 digits + check", "notes": ""},
-    "ean8": {"cmd": "^B8", "page": 83, "data": "7 digits + check", "notes": ""},
-    "upca": {"cmd": "^B9", "page": 85, "data": "11 digits + check", "notes": ""},
-    "upce": {"cmd": "^B0", "page": 66, "data": "6 digits + number system", "notes": "expanded by printer"},
+    "ean13": {"cmd": "^BE", "page": 109, "data": "exactly 12 digits (13th/check digit is computed)",
+              "notes": "JAN-13 needs the first two non-zero digits to be 49. For UCC/EAN-14 use ^B2."},
+    "ean8": {"cmd": "^B8", "page": 83, "data": "exactly 7 digits (check digit is computed)",
+             "notes": "JAN-8 needs the first two non-zero digits to be 49."},
+    "upca": {"cmd": "^BU", "page": 142, "data": "exactly 11 digits (check digit is computed and printed)",
+             "notes": "^BU, not ^B9 — ^B9 is UPC-E. Data is padded/truncated on the left with zeros; "
+                      "pair with a 2/5-digit extension (^BS) for magazines and books"},
+    "upce": {"cmd": "^B9", "page": 85, "data": "exactly 10 digits (5-digit manufacturer + 5-digit product)",
+             "notes": "Printer zero-suppresses to the short form; enter the full 10 characters. "
+                      "^B0 is Aztec, not UPC-E"},
     "upcext": {"cmd": "^BS", "page": 137, "data": "2 or 5 digits", "notes": "ISBN/ISSN add-on"},
     "gs1databar": {"cmd": "^BR", "page": 135, "data": "GTIN/AI based",
                     "notes": "Format ^BRa,b,c,d,e,f: a=orientation, b=symbology type 1-12 (default 1), c=magnification, d=separator height, e=barcode height, f=segment width"},
     "code49": {"cmd": "^B4", "page": 74, "data": "0-9 $+./- ",
                "notes": "Format ^B4o,h,f,m: f = interpretation N/A/B, m = mode"},
-    "code11": {"cmd": "^B1", "page": 72, "data": "digits and -", "notes": "check digit 1 or 2 (e=Y/N)"},
-    "codablock": {"cmd": "^BB", "page": 99, "data": "varies by mode A/B/C", "notes": "stacked 2D"},
-    "datamatrix": {"cmd": "^BX", "page": 144, "data": "full ASCII/numeric",
-                   "notes": "ECC200; quality 0-200. GS1 DataMatrix = this symbology with FNC1: prefix ^FD data with >8 (manual: 'FNC1 is invoked by >8', inserted just before the AIs)"},
+    "code11": {"cmd": "^B1", "page": 66, "data": "digits and -", "notes": "check digit 1 or 2 (e=Y/N)"},
+    "tlc39": {"cmd": "^BT", "page": 140, "data": "6 digits (ECI), then a comma, up to 25-char serial, "
+               "then optional comma-separated fields (total <= 150 bytes)",
+               "notes": "Format ^BTo,w1,r1,h1,w2,h2: Code 39 (w1/r1/h1) plus a 4-column MicroPDF417 "
+                        "(w2/h2). Defaults are density-derived and TCIF-compliant; a seventh "
+                        "non-comma character after the ECI means only Code 39 prints"},
+    "codablock": {"cmd": "^BB", "page": 90, "data": "varies by mode A/B/C", "notes": "stacked 2D"},
+    "datamatrix": {"cmd": "^BX", "page": 144, "data": "full ASCII/numeric; <= 596 chars for quality 0-140, "
+                   "3072 bytes for quality 200",
+                   "notes": "Format ^BXo,h,s,c,r,f,g,a. s = quality/ECC: 0 (default), 50/80/100/140 "
+                            "(convolution), 200 (Reed-Solomon, recommended for new work). f = format ID "
+                            "1-6 (default 6, unused at quality 200). g = escape character (default ~, "
+                            "_ on newer firmware). a = aspect ratio 1 square / 2 rectangular. "
+                            "GS1 DataMatrix = quality 200 with FNC1 inserted by the escape sequence: "
+                            "_1 (or ~1 on older firmware) immediately before the AIs; >8 is the Code 128 "
+                            "FNC1 (^FD p.104), not the Data Matrix one"},
     "qrcode": {"cmd": "^BQ", "page": 128, "data": "numeric/alphanumeric/byte/Kanji",
                "notes": "^FD data must open with <EC><input mode>, e.g. ^FDQA,<data> (p.129: Mandatory); model 1/2, EC H/Q/M/L, mask 0-7"},
     "aztec": {"cmd": "^BO", "page": 124, "data": "full ASCII", "notes": "1-33 rows"},
@@ -319,6 +393,28 @@ def _barcode_command_notes() -> dict[str, dict]:
 
 
 COMMAND_NOTES.update(_barcode_command_notes())
+
+
+def _sync_pages() -> None:
+    """Overwrite every note's page with the page in commands.json.
+
+    COMMAND_NOTES was written by hand and drifted: ^LS said p.322 (manual 296),
+    ^LT p.335 (297), ^PM p.318 (319), ^PO p.308 (322), ^FS p.251 (204), ^XG
+    p.372 (373), ~DG p.444 (175) and more. The generated table wins.
+    """
+    for cmd, meta in COMMAND_NOTES.items():
+        ref = COMMANDS.get(cmd)
+        if ref and ref.get("page"):
+            meta["page"] = ref["page"]
+
+
+_sync_pages()
+
+
+def page_of(name: str) -> int | None:
+    """Manual page of a command, or None if the manual has no such section."""
+    ref = COMMANDS.get(name)
+    return ref["page"] if ref else None
 
 
 def get_command(name: str) -> dict | None:

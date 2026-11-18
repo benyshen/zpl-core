@@ -1,0 +1,1122 @@
+{
+"^A": {
+"name": "Scalable/Bitmapped Font",
+"page": 60,
+"params": "fo,h,w"
+},
+"^A@": {
+"name": "Use Font Name to Call Font",
+"page": 62,
+"params": "o,h,w,d:f.x"
+},
+"^B0": {
+"name": "Aztec Barcode Parameters",
+"page": 64,
+"params": "a,b,c,d,e,f,g"
+},
+"^B1": {
+"name": "Code 11 Barcode",
+"page": 66,
+"params": "o,e,h,f,g"
+},
+"^B2": {
+"name": "Interleaved 2 of 5 Bar Code",
+"page": 68,
+"params": "o,h,f,g,e,j"
+},
+"^B3": {
+"name": "Code 39 Barcode",
+"page": 70,
+"params": "o,e,h,f,g"
+},
+"^B4": {
+"name": "Code 49 Barcode",
+"page": 74,
+"params": "o,h,f,m"
+},
+"^B5": {
+"name": "Planet Code Barcode",
+"page": 78,
+"params": "o,h,f,g"
+},
+"^B7": {
+"name": "PDF417 Bar Code",
+"page": 79,
+"params": "o,h,s,c,r,t"
+},
+"^B8": {
+"name": "EAN-8 Barcode",
+"page": 83,
+"params": "o,h,f,g"
+},
+"^B9": {
+"name": "UPC-E Barcode",
+"page": 85,
+"params": "o,h,f,g,e"
+},
+"^BA": {
+"name": "Code 93 Barcode",
+"page": 87,
+"params": "o,h,f,g,e"
+},
+"^BB": {
+"name": "CODABLOCK Barcode",
+"page": 90,
+"params": "o,h,s,c,r,m"
+},
+"^BC": {
+"name": "Code 128 Barcode",
+"page": 94,
+"params": "o,h,f,g,e,m"
+},
+"^BD": {
+"name": "UPS MaxiCode Bar Code",
+"page": 106,
+"params": "m,n,t"
+},
+"^BE": {
+"name": "EAN-13 Barcode",
+"page": 109,
+"params": "o,h,f,g"
+},
+"^BF": {
+"name": "MicroPDF417 Barcode",
+"page": 111,
+"params": "o,h,m"
+},
+"^BI": {
+"name": "Industrial 2 of 5 Bar Code",
+"page": 114,
+"params": "o,h,f,g"
+},
+"^BJ": {
+"name": "Standard 2 of 5 Bar Code",
+"page": 116,
+"params": "o,h,f,g"
+},
+"^BK": {
+"name": "ANSI Codabar Bar Code",
+"page": 118,
+"params": "o,e,h,f,g,k,l"
+},
+"^BL": {
+"name": "LOGMARS Barcode",
+"page": 120,
+"params": "o,h,g"
+},
+"^BM": {
+"name": "MSI Bar Code",
+"page": 122,
+"params": "o,e,h,f,g,e2"
+},
+"^BO": {
+"name": "Aztec Bar Code Parameters",
+"page": 124,
+"params": "a,b,c,d,e,f,g"
+},
+"^BP": {
+"name": "Plessey Barcode",
+"page": 126,
+"params": "o,e,h,f,g"
+},
+"^BQ": {
+"name": "QR Code Barcode",
+"page": 128,
+"params": "a,b,c,d,e"
+},
+"^BR": {
+"name": "GS1 Databar",
+"page": 135,
+"params": "a,b,c,d,e,f"
+},
+"^BS": {
+"name": "UPC/EAN Extensions",
+"page": 137,
+"params": "o,h,f,g"
+},
+"^BT": {
+"name": "TLC39 Barcode",
+"page": 140,
+"params": "o,w1,r1,h1,w2,h2"
+},
+"^BU": {
+"name": "UPC-A Barcode",
+"page": 142,
+"params": "o,h,f,g,e"
+},
+"^BX": {
+"name": "Data Matrix Barcode",
+"page": 144,
+"params": "o,h,s,c,r,f,g,a"
+},
+"^BY": {
+"name": "Bar Code Field Default",
+"page": 148,
+"params": "w,r,h"
+},
+"^BZ": {
+"name": "POSTNET Bar Code",
+"page": 150,
+"params": "o,h,f,g,t"
+},
+"^CC": {
+"name": "Change Caret",
+"page": 152,
+"params": "x"
+},
+"^CD": {
+"name": "Change Delimiter",
+"page": 153,
+"params": "a"
+},
+"^CF": {
+"name": "Change the Alphanumeric Default Font",
+"page": 154,
+"params": "f,h,w"
+},
+"^CI": {
+"name": "Change International Font/Encoding",
+"page": 155,
+"params": "a,s1,d1,s2,d2,..."
+},
+"^CM": {
+"name": "Change Memory Letter Designation",
+"page": 160,
+"params": "a,b,c,d"
+},
+"^CN": {
+"name": "Cut Now",
+"page": 162,
+"params": "a"
+},
+"^CO": {
+"name": "Cache On",
+"page": 163,
+"params": "a,b,c"
+},
+"^CP": {
+"name": "Remove Label",
+"page": 165,
+"params": "a"
+},
+"^CT": {
+"name": "Change Tilde",
+"page": 166,
+"params": "a"
+},
+"^CV": {
+"name": "Code Validation",
+"page": 167,
+"params": "a"
+},
+"^CW": {
+"name": "Font Identifier",
+"page": 168,
+"params": "a,d:o.x"
+},
+"^DF": {
+"name": "Download Format",
+"page": 174,
+"params": "d:o.x"
+},
+"^FB": {
+"name": "Field Block",
+"page": 186,
+"params": "a,b,c,d,e"
+},
+"^FC": {
+"name": "Field Clock",
+"page": 189,
+"params": "a,b,c"
+},
+"^FD": {
+"name": "Field Data",
+"page": 190,
+"params": "a"
+},
+"^FE": {
+"name": "Field Concatenation",
+"page": 191,
+"params": "a"
+},
+"^FH": {
+"name": "Field Hexadecimal Indicator",
+"page": 193,
+"params": "a"
+},
+"^FL": {
+"name": "Font Linking",
+"page": 195,
+"params": "<ext>,<base>,<link>"
+},
+"^FM": {
+"name": "Multiple Field Origin Locations",
+"page": 197,
+"params": "x1,y1,x2,y2,..."
+},
+"^FN": {
+"name": "Field Number",
+"page": 200,
+"params": "#\"a\""
+},
+"^FO": {
+"name": "Field Origin",
+"page": 201,
+"params": "x,y,z"
+},
+"^FP": {
+"name": "Field Parameter",
+"page": 202,
+"params": "d,g"
+},
+"^FR": {
+"name": "Field Reverse Print",
+"page": 203,
+"params": ""
+},
+"^FS": {
+"name": "Field Separator",
+"page": 204,
+"params": ""
+},
+"^FT": {
+"name": "Field Typeset",
+"page": 205,
+"params": "x,y,z"
+},
+"^FV": {
+"name": "Field Variable",
+"page": 207,
+"params": "a"
+},
+"^FW": {
+"name": "Field Orientation",
+"page": 208,
+"params": "r,z"
+},
+"^FX": {
+"name": "Comment",
+"page": 209,
+"params": "c"
+},
+"^GB": {
+"name": "Graphic Box",
+"page": 210,
+"params": "w,h,t,c,r"
+},
+"^GC": {
+"name": "Graphic Circle",
+"page": 212,
+"params": "d,t,c"
+},
+"^GD": {
+"name": "Graphic Diagonal Line",
+"page": 213,
+"params": "w,h,t,c,o"
+},
+"^GE": {
+"name": "Graphic Ellipse",
+"page": 214,
+"params": "w,h,t,c"
+},
+"^GF": {
+"name": "Graphic Field",
+"page": 215,
+"params": "a,b,c,d,data"
+},
+"^GS": {
+"name": "Graphic Symbol",
+"page": 217,
+"params": "o,h,w"
+},
+"^HF": {
+"name": "Host Format",
+"page": 220,
+"params": "d,o,x"
+},
+"^HG": {
+"name": "Host Graphic",
+"page": 221,
+"params": "d:o.x"
+},
+"^HH": {
+"name": "Host Graphic (legacy)",
+"page": 222,
+"params": ""
+},
+"^HL": {
+"name": "Return RFID Data Log to Host",
+"page": 413,
+"params": ""
+},
+"^HR": {
+"name": "Calibrate RFID Tag Position",
+"page": 415,
+"params": "a,b,c,d,e,f,g,h,i"
+},
+"^HT": {
+"name": "Host Linked Fonts List",
+"page": 237,
+"params": ""
+},
+"^HV": {
+"name": "Host Verification",
+"page": 239,
+"params": "#,n,h,t,a"
+},
+"^HW": {
+"name": "Host Directory List",
+"page": 240,
+"params": "d:o.x"
+},
+"^HY": {
+"name": "Upload Graphics",
+"page": 242,
+"params": "d:o.x"
+},
+"^HZ": {
+"name": "Display Description Information",
+"page": 243,
+"params": "b"
+},
+"^ID": {
+"name": "Object Delete",
+"page": 245,
+"params": "d:o.x"
+},
+"^IL": {
+"name": "Image Load",
+"page": 247,
+"params": "d:o.x"
+},
+"^IM": {
+"name": "Image Move",
+"page": 248,
+"params": "d:o.x"
+},
+"^IS": {
+"name": "Image Save",
+"page": 249,
+"params": "d:o.x,p"
+},
+"^JB": {
+"name": "Initialize Flash Memory",
+"page": 252,
+"params": "a"
+},
+"^JH": {
+"name": "Enable/Disable Slew During Backfeed",
+"page": 259,
+"params": "a,b,c,d,e,f,g,h,i,j"
+},
+"^JI": {
+"name": "Start ZBI (Zebra BASIC Interpreter)",
+"page": 263,
+"params": "d:o.x,b,c,d"
+},
+"^JJ": {
+"name": "Set Auxiliary Port",
+"page": 266,
+"params": "a,b,c,d,e,f"
+},
+"^JM": {
+"name": "Set Dots per Millimeter",
+"page": 269,
+"params": "n"
+},
+"^JS": {
+"name": "Sensor Select",
+"page": 275,
+"params": "a"
+},
+"^JT": {
+"name": "Head Test Interval",
+"page": 277,
+"params": "####,a,b,c"
+},
+"^JU": {
+"name": "",
+"page": 278,
+"params": "a"
+},
+"^JW": {
+"name": "Set Ribbon Tension",
+"page": 279,
+"params": "t"
+},
+"^JZ": {
+"name": "Reprint After Error",
+"page": 281,
+"params": "a"
+},
+"^KC": {
+"name": "Set Client Identifier",
+"page": 378,
+"params": "a,b,c,d"
+},
+"^KD": {
+"name": "Select Date and Time Format (for Real Time Clock)",
+"page": 283,
+"params": "a"
+},
+"^KL": {
+"name": "",
+"page": 284,
+"params": "a"
+},
+"^KN": {
+"name": "Set Kiosk Values (legacy)",
+"page": 285,
+"params": "a,b"
+},
+"^KP": {
+"name": "Define Kiosk Password",
+"page": 287,
+"params": "a,b"
+},
+"^KV": {
+"name": "Kiosk Values",
+"page": 288,
+"params": "a,b,c,d,e"
+},
+"^LF": {
+"name": "List Font Links",
+"page": 292,
+"params": ""
+},
+"^LH": {
+"name": "Label Home",
+"page": 293,
+"params": "x,y"
+},
+"^LL": {
+"name": "Label Length",
+"page": 294,
+"params": "y.x"
+},
+"^LR": {
+"name": "Label Reverse Print",
+"page": 295,
+"params": "a"
+},
+"^LS": {
+"name": "Label Shift",
+"page": 296,
+"params": "a"
+},
+"^LT": {
+"name": "Label Top",
+"page": 297,
+"params": "x"
+},
+"^MA": {
+"name": "Maintenance Alert Setup",
+"page": 298,
+"params": "type,print,printlabel_threshold,frequency,units"
+},
+"^MC": {
+"name": "Map Clear",
+"page": 300,
+"params": "a"
+},
+"^MD": {
+"name": "Media Darkness",
+"page": 301,
+"params": "a"
+},
+"^MF": {
+"name": "Media Feed",
+"page": 302,
+"params": "p,h"
+},
+"^MI": {
+"name": "Set Maintenance Information Message",
+"page": 303,
+"params": "type,message"
+},
+"^ML": {
+"name": "Maximum Label Length",
+"page": 304,
+"params": "a"
+},
+"^MM": {
+"name": "Print Mode",
+"page": 305,
+"params": "a,b"
+},
+"^MN": {
+"name": "Media Tracking",
+"page": 307,
+"params": "a,b"
+},
+"^MP": {
+"name": "Mode Protection",
+"page": 309,
+"params": "a"
+},
+"^MT": {
+"name": "Media Type",
+"page": 311,
+"params": "a"
+},
+"^MU": {
+"name": "Set Units of Measurement",
+"page": 312,
+"params": "a,b,c"
+},
+"^MW": {
+"name": "Modify Head Cold Warning",
+"page": 314,
+"params": "a"
+},
+"^NB": {
+"name": "Set Wired Network Authentication",
+"page": 379,
+"params": "a"
+},
+"^NC": {
+"name": "Set Wired Network Mode",
+"page": 380,
+"params": "a"
+},
+"^ND": {
+"name": "Change Network Settings",
+"page": 382,
+"params": "a,b,c,d,e,f,g,h,i,j"
+},
+"^NI": {
+"name": "Network ID Number",
+"page": 384,
+"params": "###"
+},
+"^NN": {
+"name": "Set SNMP",
+"page": 385,
+"params": "a,b,c,d,e,f"
+},
+"^NP": {
+"name": "Set Primary/Secondary Device",
+"page": 386,
+"params": "a"
+},
+"^NS": {
+"name": "Change Wired Networking Settings",
+"page": 388,
+"params": "a,b,c,d,e,f,g,h,i"
+},
+"^NT": {
+"name": "Set SMTP",
+"page": 390,
+"params": "a,b"
+},
+"^NW": {
+"name": "Set Web Authentication Timeout Value",
+"page": 392,
+"params": "a"
+},
+"^PA": {
+"name": "Advanced Text Properties",
+"page": 315,
+"params": "a,b,c,d"
+},
+"^PF": {
+"name": "Slew Given Number of Dot Rows",
+"page": 316,
+"params": "#"
+},
+"^PH": {
+"name": "Slew to Home Position",
+"page": 317,
+"params": ""
+},
+"^PL": {
+"name": "Present Length Addition",
+"page": 318,
+"params": "a"
+},
+"^PM": {
+"name": "Mirror Image",
+"page": 319,
+"params": "a"
+},
+"^PN": {
+"name": "Present Now",
+"page": 321,
+"params": "a"
+},
+"^PO": {
+"name": "Print Orientation",
+"page": 322,
+"params": "a"
+},
+"^PP": {
+"name": "Programmable Pause",
+"page": 323,
+"params": ""
+},
+"^PQ": {
+"name": "Print Quantity",
+"page": 324,
+"params": "q,p,r,o,e"
+},
+"^PR": {
+"name": "Print Rate",
+"page": 326,
+"params": ""
+},
+"^PW": {
+"name": "Print Width",
+"page": 329,
+"params": ""
+},
+"^RB": {
+"name": "Define EPC Data Structure",
+"page": 424,
+"params": "n,p0,p1,p2, ..., p15"
+},
+"^RF": {
+"name": "Read or Write RFID Format",
+"page": 426,
+"params": "o,f,b,n,m"
+},
+"^RL": {
+"name": "RFID Lock (permanent)",
+"page": 431,
+"params": "P"
+},
+"^RS": {
+"name": "Set Up RFID Parameters",
+"page": 434,
+"params": "t,p,v,n,e,a,c,s"
+},
+"^RU": {
+"name": "Read Unique RFID Chip Serialization",
+"page": 439,
+"params": "a,b"
+},
+"^RW": {
+"name": "Set RF Power Levels for Read and Write",
+"page": 441,
+"params": "r,w,a"
+},
+"^SC": {
+"name": "Set Serial Communications",
+"page": 332,
+"params": "a,b,c,d,e,f"
+},
+"^SE": {
+"name": "Select Encoding Table",
+"page": 334,
+"params": "a,s1,d1,..."
+},
+"^SF": {
+"name": "Set Serialization Format",
+"page": 335,
+"params": "a,b"
+},
+"^SI": {
+"name": "Set Sensor Intensity",
+"page": 338,
+"params": "a,b"
+},
+"^SL": {
+"name": "Set Mode and Language (for Real-Time Clock)",
+"page": 339,
+"params": "a,b"
+},
+"^SN": {
+"name": "Serialization Data",
+"page": 341,
+"params": "v,n,z"
+},
+"^SO": {
+"name": "Set Offset (for Real-Time Clock)",
+"page": 343,
+"params": "a,b,c,d,e,f,g"
+},
+"^SP": {
+"name": "Start Print",
+"page": 344,
+"params": "a"
+},
+"^SQ": {
+"name": "Halt ZebraNet Alert",
+"page": 346,
+"params": "a,b,c"
+},
+"^SR": {
+"name": "Set Printhead Resistance",
+"page": 348,
+"params": "####"
+},
+"^SS": {
+"name": "Set Media Sensors",
+"page": 349,
+"params": "w,m,r,l,m2,r2,a,b,c"
+},
+"^ST": {
+"name": "Set Date and Time (for Real-Time Clock)",
+"page": 351,
+"params": "a,b,c,d,e,f,g"
+},
+"^SX": {
+"name": "Set ZebraNet Alert",
+"page": 352,
+"params": "a,b,c,d,e,f"
+},
+"^SZ": {
+"name": "Set ZPL Mode",
+"page": 354,
+"params": "a"
+},
+"^TB": {
+"name": "Text Blocks",
+"page": 356,
+"params": "a,b,c"
+},
+"^TO": {
+"name": "Transfer Object",
+"page": 357,
+"params": "s:o.x,d:o.x"
+},
+"^WA": {
+"name": "Set Antenna Parameters",
+"page": 393,
+"params": "a,b"
+},
+"^WD": {
+"name": "Print Directory Label",
+"page": 361,
+"params": "d:o.x"
+},
+"^WE": {
+"name": "Set WEP Mode",
+"page": 394,
+"params": "a,b,c,d,e,f,g,h"
+},
+"^WL": {
+"name": "Set LEAP Parameters",
+"page": 396,
+"params": "a,b,c"
+},
+"^WP": {
+"name": "Reset Network",
+"page": 399,
+"params": "a,b"
+},
+"^WR": {
+"name": "Set Transmit Rate",
+"page": 400,
+"params": "a,b,c,d,e"
+},
+"^WS": {
+"name": "Set Wireless Radio Card Values",
+"page": 402,
+"params": "e,o,p,h,i,j,k"
+},
+"^WX": {
+"name": "Configure Wireless Securities",
+"page": 404,
+"params": "a,[zero or more supporting parameters]"
+},
+"^XA": {
+"name": "Start Format",
+"page": 370,
+"params": ""
+},
+"^XB": {
+"name": "Suppress Backfeed",
+"page": 371,
+"params": ""
+},
+"^XF": {
+"name": "Recall Format",
+"page": 372,
+"params": "d:o.x"
+},
+"^XG": {
+"name": "Recall Graphic",
+"page": 373,
+"params": "d:o.x,mx,my"
+},
+"^XS": {
+"name": "Set Dynamic Media Calibration",
+"page": 374,
+"params": "length,threshold"
+},
+"^XZ": {
+"name": "End Format",
+"page": 375,
+"params": ""
+},
+"^ZZ": {
+"name": "Printer Sleep",
+"page": 376,
+"params": "t,b"
+},
+"~CC": {
+"name": "Change Caret (alias of ^CC)",
+"page": 152,
+"params": "x"
+},
+"~CD": {
+"name": "Change Delimiter (alias of ^CD)",
+"page": 153,
+"params": "a"
+},
+"~CT": {
+"name": "Change Tilde (alias of ^CT)",
+"page": 166,
+"params": "a"
+},
+"~DB": {
+"name": "Download Bitmap Font",
+"page": 170,
+"params": "d:o.x,a,h,w,base,space,#char,©,data"
+},
+"~DE": {
+"name": "Download Encoding",
+"page": 172,
+"params": "d:o.x,s,data"
+},
+"~DG": {
+"name": "Download Graphics",
+"page": 175,
+"params": "d:o.x,t,w,data"
+},
+"~DN": {
+"name": "Abort Download Graphic",
+"page": 177,
+"params": ""
+},
+"~DS": {
+"name": "Download Intellifont (Scalable Font)",
+"page": 178,
+"params": "d:o.x,s,data"
+},
+"~DT": {
+"name": "Download Bounded TrueType Font",
+"page": 179,
+"params": "d:o.x,s,data"
+},
+"~DU": {
+"name": "Download Unbounded TrueType Font",
+"page": 180,
+"params": "d:o.x,s,data"
+},
+"~DV": {
+"name": "Download Objects",
+"page": 181,
+"params": "d:f,b,x,t,w,data"
+},
+"~DY": {
+"name": "Download Graphics / Fonts",
+"page": 181,
+"params": "d:o.x,t,w,data"
+},
+"~EG": {
+"name": "Erase Download Graphics",
+"page": 185,
+"params": ""
+},
+"~HB": {
+"name": "Battery Status",
+"page": 218,
+"params": ""
+},
+"~HD": {
+"name": "Head Diagnostic",
+"page": 219,
+"params": ""
+},
+"~HI": {
+"name": "Host Identification",
+"page": 224,
+"params": ""
+},
+"~HM": {
+"name": "Host RAM Status",
+"page": 225,
+"params": ""
+},
+"~HQ": {
+"name": "Host Query",
+"page": 226,
+"params": "query-type"
+},
+"~HS": {
+"name": "Host Status",
+"page": 233,
+"params": ""
+},
+"~HU": {
+"name": "Return ZebraNet Alert Configuration",
+"page": 238,
+"params": ""
+},
+"~JA": {
+"name": "Cancel All",
+"page": 251,
+"params": ""
+},
+"~JB": {
+"name": "Reset Optional Memory",
+"page": 253,
+"params": ""
+},
+"~JC": {
+"name": "Set Media Sensor Calibration",
+"page": 254,
+"params": ""
+},
+"~JD": {
+"name": "Enable Communications Diagnostics",
+"page": 255,
+"params": ""
+},
+"~JE": {
+"name": "Disable Diagnostics",
+"page": 256,
+"params": ""
+},
+"~JF": {
+"name": "Set Battery Condition",
+"page": 257,
+"params": "p"
+},
+"~JG": {
+"name": "Graphing Sensor Calibration",
+"page": 258,
+"params": ""
+},
+"~JI": {
+"name": "Start ZBI (Zebra BASIC Interpreter)",
+"page": 265,
+"params": ""
+},
+"~JL": {
+"name": "Set Label Length",
+"page": 268,
+"params": ""
+},
+"~JN": {
+"name": "Head Test Fatal",
+"page": 270,
+"params": ""
+},
+"~JO": {
+"name": "Head Test Non-Fatal",
+"page": 271,
+"params": ""
+},
+"~JP": {
+"name": "Pause and Cancel Format",
+"page": 272,
+"params": ""
+},
+"~JQ": {
+"name": "Terminate Zebra BASIC Interpreter",
+"page": 273,
+"params": ""
+},
+"~JR": {
+"name": "Power On Reset",
+"page": 274,
+"params": ""
+},
+"~JS": {
+"name": "Change Backfeed Sequence",
+"page": 276,
+"params": "b"
+},
+"~JX": {
+"name": "Cancel Current Partially Input Format",
+"page": 280,
+"params": ""
+},
+"~KB": {
+"name": "Kill Battery (Battery Discharge Mode)",
+"page": 282,
+"params": ""
+},
+"~NC": {
+"name": "Network Connect",
+"page": 381,
+"params": "###"
+},
+"~NR": {
+"name": "Set All Network Printers Transparent",
+"page": 387,
+"params": ""
+},
+"~NT": {
+"name": "Set Currently Connected Printer Transparent",
+"page": 391,
+"params": ""
+},
+"~PH": {
+"name": "Slew to Home Position (alias of ^PH)",
+"page": 317,
+"params": ""
+},
+"~PL": {
+"name": "Present Length Addition",
+"page": 318,
+"params": "a"
+},
+"~PM": {
+"name": "Decommissioning Mode",
+"page": 320,
+"params": "a,b"
+},
+"~PP": {
+"name": "Programmable Pause (alias of ^PP)",
+"page": 323,
+"params": ""
+},
+"~PR": {
+"name": "Applicator Reprint",
+"page": 325,
+"params": ""
+},
+"~PS": {
+"name": "Resume Printing",
+"page": 328,
+"params": ""
+},
+"~RO": {
+"name": "Reset Advanced Counters",
+"page": 330,
+"params": "c"
+},
+"~SD": {
+"name": "Set Darkness",
+"page": 333,
+"params": "##"
+},
+"~TA": {
+"name": "Tear-off Adjust Position",
+"page": 355,
+"params": "###"
+},
+"~WC": {
+"name": "Print Configuration Label",
+"page": 359,
+"params": ""
+},
+"~WL": {
+"name": "Print Network Configuration Label",
+"page": 397,
+"params": ""
+},
+"~WQ": {
+"name": "Write Query",
+"page": 363,
+"params": "query-type"
+},
+"~WR": {
+"name": "Reset Wireless Radio Card and Print Server",
+"page": 401,
+"params": ""
+}
+}

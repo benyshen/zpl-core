@@ -58,13 +58,13 @@ z3, i3 = show("multi-symbology", {
     "fields": [
         {"type": "barcode", "symbology": "datamatrix", "data": "DM12345", "x_mm": 2, "y_mm": 2, "module_size_dots": 10},
         {"type": "barcode", "symbology": "pdf417", "data": "PDF417DATA", "x_mm": 2, "y_mm": 14, "height_mm": 10, "security_level": 2},
-        {"type": "barcode", "symbology": "ean13", "data": "5901234123457", "x_mm": 2, "y_mm": 28},
-        {"type": "barcode", "symbology": "upca", "data": "012345678905", "x_mm": 2, "y_mm": 42},
+        {"type": "barcode", "symbology": "ean13", "data": "590123412345", "x_mm": 2, "y_mm": 28},
+        {"type": "barcode", "symbology": "upca", "data": "01234567890", "x_mm": 2, "y_mm": 42},
         {"type": "barcode", "symbology": "i2of5", "data": "12345670", "x_mm": 2, "y_mm": 56},
         {"type": "barcode", "symbology": "codabar", "data": "A12345B", "x_mm": 2, "y_mm": 68},
     ],
 })
-for cmd in ["^BX", "^B7", "^BE", "^B9", "^B2", "^BK"]:
+for cmd in ["^BX", "^B7", "^BE", "^BU", "^B2", "^BK"]:
     assert cmd in z3, cmd
 assert not [i for i in i3 if i["severity"] == "error"]
 
@@ -168,16 +168,16 @@ assert "中文".encode("utf-8") in raw, raw
 z17, i17 = show("orientation letters", {
     "dpi": 203, "width_mm": 70, "height_mm": 60,
     "fields": [
-        {"type": "barcode", "symbology": "upca", "data": "012345678905", "orientation": "R", "x_mm": 2, "y_mm": 2},
-        {"type": "barcode", "symbology": "upce", "data": "0123456", "orientation": "R", "x_mm": 2, "y_mm": 12},
+        {"type": "barcode", "symbology": "upca", "data": "01234567890", "orientation": "R", "x_mm": 2, "y_mm": 2},
+        {"type": "barcode", "symbology": "upce", "data": "0123456789", "orientation": "R", "x_mm": 2, "y_mm": 12},
         {"type": "barcode", "symbology": "gs1databar", "data": "0123456789012",
          "orientation": "N", "height_mm": 10, "x_mm": 2, "y_mm": 24},
         {"type": "barcode", "symbology": "qrcode", "data": "https://example.com", "scale": 4,
          "orientation": "N", "x_mm": 40, "y_mm": 30},
     ],
 })
-assert "^B9R^FD" in z17, z17            # ^B9o,h,f,g,e
-assert "^B0R^FD" in z17, z17            # ^B0o,e,h,f,g
+assert "^B9R^FD" in z17, z17            # UPC-E  = ^B9o,h,f,g,e  (p.85)
+assert "^BUR^FD" in z17, z17            # UPC-A  = ^BUo,h,f,g,e  (p.142, Table 34)
 assert re.search(r"\^BRN,,,,80\^FD", z17), z17   # ^BR a,b,c,d,e,f -> height is 'e'
 assert "^BQN,,4" in z17, z17            # ^BQ a,b,c,d,e -> magnification is 'c'
 assert not [i for i in i17 if i["severity"] == "error"], i17
@@ -195,7 +195,8 @@ for sym, data in [("code11", "12345"), ("codablock", "ABCDEF123456"), ("code49",
                   ("micropdf417", "ABC123"), ("planet", "12345678901"),
                   ("postnet", "123456789"), ("msi", "12345"), ("plessey", "1234ABCD"),
                   ("logmars", "1234"), ("std2of5", "1234"), ("ean8", "1234567"),
-                  ("upcext", "12345"), ("aztec", "ABC"), ("upsmaxicode", "ABC123")]:
+                  ("upcext", "12345"), ("aztec", "ABC"), ("upsmaxicode", "ABC123"),
+                  ("upce", "0123456789")]:
     zs, iss = builder.build_label({"dpi": 203, "width_mm": 60, "height_mm": 40,
         "fields": [{"type": "barcode", "symbology": sym, "data": data, "x_mm": 2, "y_mm": 2}]})
     errs = [i for i in iss if i["severity"] == "error"]
@@ -491,6 +492,38 @@ try:
     r31d = _render.render(zpl31, out=f"{_out}/d.png", scale=2)
     assert r31d["ok"] and r31d["dots"] == [480, 320], r31d
     assert _Image.open(r31d["png"]).size == (960, 640), r31d["png"]
+    # 旋转字段：^A/^B 的 N/R/I/B 必须真的转，否则预览会让人以为旁边是空的
+    # （0.1.x 把 orientation 整条丢弃，旋转条码画成了水平的）
+    _rot = _tf.mkdtemp(prefix="zpl_rot_")
+
+    def _ink_box(png):
+        a = _np.array(_Image.open(png).convert("L")) < 128
+        rows = _np.where(a.any(axis=1))[0]
+        cols = _np.where(a.any(axis=0))[0]
+        return int(cols.min()), int(rows.min()), int(cols.max()), int(rows.max())
+
+    _bx = _ink_box(_render.render("^XA^PW800^LL600^FO400,100^BY2,2,80^BCN,80^FDABC123^FS^XZ",
+                                  out=f"{_rot}/n.png")["png"])
+    _br = _render.render("^XA^PW800^LL600^FO400,100^BY2,2,80^BCR,80^FDABC123^FS^XZ",
+                         out=f"{_rot}/r.png")
+    _brb = _ink_box(_br["png"])
+    assert _bx[2] - _bx[0] > _bx[3] - _bx[1], _bx          # N: 宽 > 高
+    assert _brb[3] - _brb[1] > _brb[2] - _brb[0], _brb     # R: 高 > 宽
+    assert abs((_brb[2] - _brb[0]) - (_bx[3] - _bx[1])) <= 3, (_bx, _brb)  # 宽度换成条高
+    assert not _br["warnings"], _br["warnings"]
+
+    _off = _render.render("^XA^PW300^LL300^FO100,100^A0B,40^FDTHIS IS A LONG LABEL TEXT^FS^XZ",
+                          out=f"{_rot}/off.png")
+    assert any("outside the label" in w for w in _off["warnings"]), _off["warnings"]
+
+    # 文本朝上（B）从左边界往左长，朝下（R）从原点往右下长
+    _tR = _ink_box(_render.render("^XA^PW480^LL320^FO100,100^A0R,40^FDABC^FS^XZ",
+                                  out=f"{_rot}/tR.png")["png"])
+    _tB = _ink_box(_render.render("^XA^PW480^LL320^FO100,100^A0B,40^FDABC^FS^XZ",
+                                  out=f"{_rot}/tB.png")["png"])
+    assert _tR[0] >= 98 and _tR[1] >= 98, _tR              # R: 原点即左上角
+    assert _tB[2] <= 102, _tB                              # B: 往左长，结束于原点
+
 except ImportError as exc:
     print(f"  (render needs pillow/segno/python-barcode: pip install -e '.[render]' -- skipped: {exc})")
 

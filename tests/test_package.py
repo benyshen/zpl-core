@@ -24,7 +24,7 @@ from zpl_core import builder, knowledge, transport, xlsx_batch  # noqa: E402
 
 # ---------------------------------------------------------------- 版本与数据
 
-check("version is 0.1.1", zpl_core.__version__ == "0.1.1", zpl_core.__version__)
+check("version is 0.2.0", zpl_core.__version__ == "0.2.0", zpl_core.__version__)
 
 data_dir = Path(zpl_core.DATA_DIR)
 check("data dir sits inside the package",
@@ -32,7 +32,21 @@ check("data dir sits inside the package",
 check("command catalog present", (data_dir / "command_catalog.txt").exists())
 
 cmds = knowledge.known_commands()
-check("catalog loads 253 commands", len(cmds) == 253, str(len(cmds)))
+import json as _json
+_ref = _json.loads((data_dir / "commands.json").read_text(encoding="utf-8"))
+check("command table ships with the package", (data_dir / "commands.json").exists())
+check("catalog == commands.json", cmds == set(_ref), f"{len(cmds)} vs {len(_ref)}")
+# The old catalog was a token scrape of the manual and carried 29 non-commands
+# (^A0, ^AB, ^2, ~0 ...) so that "^A0N,30" would not read as UNKNOWN_CMD. The
+# tokenizer now resolves 2-char then 1-char, so those must all be gone.
+junk = {"^A0", "^AB", "^AD", "^AE", "^AF", "^C", "^F1", "^F8", "^2", "^5", "^12", "^16",
+        "~0", "~1", "~3", "~22", "~50", "~@", "~G", "~X", "^X", "~BO", "~CC", "~CD", "~CT",
+        "~DF", "~DL", "~HL", "~JK", "~PH", "~PL", "~PP", "~PS", "~EG"}
+# ...except the ~ aliases the manual prints in the ^CC/^CD/^CT/^PH/^PP sections
+junk -= {"~CC", "~CD", "~CT", "~PH", "~PP", "~PL", "~PS", "~EG"}
+check("catalog carries no non-command tokens", not (cmds & junk), str(sorted(cmds & junk)))
+for c in ("^BU", "~DY", "~HS", "^HT", "^PR", "^PW", "~CC", "~PH"):
+    check(f"catalog has {c}", c in cmds)
 
 ocr_dir = data_dir / "ocr"
 
@@ -135,7 +149,7 @@ check("no zebra_mcp references left in the package", not hits, ", ".join(hits) o
 
 out = subprocess.run([sys.executable, "-c", "import zpl_core; print(zpl_core.__version__)"],
                      capture_output=True, text=True)
-check("fresh interpreter imports the package", out.returncode == 0 and "0.1.1" in out.stdout,
+check("fresh interpreter imports the package", out.returncode == 0 and "0.2.0" in out.stdout,
       (out.stdout or out.stderr).strip()[:80])
 
 print()
