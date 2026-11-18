@@ -1,6 +1,6 @@
 [project]
 name = "zpl-core"
-version = "0.2.0"
+version = "0.2.0.post0"
 description = "ZPL II engine: build, validate, render and send Zebra labels. Stdlib-only core with optional render/OCR extras."
 readme = "README.md"
 requires-python = ">=3.10"
@@ -39,4 +39,4 @@ build-backend = "hatchling.build"
 packages = ["src/zpl_core"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/zpl_core", "tests", "docs", "scripts", "README.md", "CHANGELOG.md", "LICENSE"]
+include = ["src/zpl_core", "tests", "docs", "scripts", "README.md", "CHANGELOG.md", "DISCLAIMER.md", "LICENSE"]

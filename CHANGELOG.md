@@ -2,6 +2,16 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 组织，版本号遵循语义化。
 
+## 0.2.0.post0 — 2026-11-18
+
+**只有文档 / 元数据，代码与 0.2.0 完全一致。** PyPI 的发布元数据不可修改，所以用 PEP 440 的
+post 版本补上免责声明（`pip install zpl-core` 会自动选到它）。
+
+- 新增 `DISCLAIMER.md`（中英双语）：ZPL 由 Zebra Technologies Corporation 开发，本项目是独立、
+  非官方工具，与之无关联/授权/认可/赞助；不含 Zebra 驱动、固件、SDK 或手册正文；仅用于开发调试，
+  输出只是对真实硬件的近似，可扫性与合规性只能由真机验证。
+- README 增加「免责声明」章节（PyPI 页面展示的就是 README）。
+
 ## 0.2.0 — 2026-11-18
 
 对着手册原文 **P1134473-11EN Rev A（2026-07-05）** 逐条复核后，修正了一批会打出错误标签而
