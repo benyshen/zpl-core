@@ -23,7 +23,7 @@ from __future__ import annotations
 
 import importlib
 
-__version__ = "0.3.1"
+__version__ = "0.3.2"
 
 from . import builder, catalog, knowledge, transport, xlsx_batch  # noqa: E402,F401
 from .paths import DATA_DIR, data_file  # noqa: E402,F401

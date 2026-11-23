@@ -221,6 +221,41 @@ check("no module_width on a stacked code warns about inherited ^BY",
           {"dpi": 200, "width_mm": 60, "height_mm": 30, "fields": [
               {"type": "barcode", "symbology": "pdf417", "data": "A"}]})[1]))
 
+# ------------------------------- ^BF MicroPDF417 mode / ^BT TLC39 data format
+print("\n-- ^BF / ^BT: the two that print nothing when the data is wrong --")
+mp, mp_iss = builder.build_label({"dpi": 200, "width_mm": 60, "height_mm": 45, "fields": [
+    {"type": "barcode", "symbology": "micropdf417", "data": "MICRO-PDF417-26"}]})
+check("MicroPDF417 auto-picks a mode that fits (15 chars -> mode 2)",
+      "^BFN,,2" in mp, mp.split("^BF")[-1][:12])
+check("…without complaining", not [i for i in mp_iss if i["severity"] == "error"], str(mp_iss))
+check("short MicroPDF417 data keeps the default mode 0",
+      "^BFN^" not in mp and "^BFN$" not in mp and
+      not builder.build_label({"dpi": 200, "width_mm": 60, "height_mm": 45, "fields": [
+          {"type": "barcode", "symbology": "micropdf417", "data": "MPDF"}]})[0]
+      .split("^BF")[-1].startswith("N,"))
+check("an explicit mode too small for the data is an error",
+      any(i["code"] == "BF_CAPACITY" and i["severity"] == "error"
+          for i in builder.build_label({"dpi": 200, "width_mm": 60, "height_mm": 45, "fields": [
+              {"type": "barcode", "symbology": "micropdf417", "data": "MICRO-PDF417-26",
+               "mode": 0}]})[1]))
+check("MicroPDF417 beyond mode 33 is an error",
+      any(i["code"] == "BF_CAPACITY" for i in builder.build_label(
+          {"dpi": 200, "width_mm": 60, "height_mm": 45, "fields": [
+              {"type": "barcode", "symbology": "micropdf417", "data": "X" * 400}]})[1]))
+
+tl_ok, tl_ok_iss = builder.build_label({"dpi": 200, "width_mm": 60, "height_mm": 45, "fields": [
+    {"type": "barcode", "symbology": "tlc39", "data": "123456,SN0012345"}]})
+check("TLC39 accepts 6 digits + comma + serial", "^BT" in tl_ok and not tl_ok_iss,
+      str(tl_ok_iss))
+check("TLC39 rejects anything else (the printer would draw only half the symbol)",
+      any(i["code"] == "BT_FORMAT" for i in builder.build_label(
+          {"dpi": 200, "width_mm": 60, "height_mm": 45, "fields": [
+              {"type": "barcode", "symbology": "tlc39", "data": "TLC39-28"}]})[1]))
+check("TLC39 rejects a non-numeric ECI prefix",
+      any(i["code"] == "BT_FORMAT" for i in builder.build_label(
+          {"dpi": 200, "width_mm": 60, "height_mm": 45, "fields": [
+              {"type": "barcode", "symbology": "tlc39", "data": "AB1234,SN1"}]})[1]))
+
 # ========================================================= 3. ~HS closed loop
 print("\n-- ~HS: parse the three host-status strings --")
 

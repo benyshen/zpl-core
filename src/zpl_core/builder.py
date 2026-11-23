@@ -25,6 +25,23 @@ import re
 
 # ---- manual defaults (Initial Value at Power Up) --------------------------------
 BY_W, BY_R, BY_H = 2, 3.0, 10          # ^BY p.148: w 1-10 (power-up 2), r 2.0-3.0
+
+# ^BF p.112 Table 5: mode -> (columns, rows, ec%, max alphanumeric, max digits).
+# The mode fixes the symbol size, so over-length data prints nothing at all.
+_MICROPDF_MODES = {
+    0: (1, 11, 64, 6, 8),      1: (1, 14, 50, 12, 17),   2: (1, 17, 41, 18, 26),
+    3: (1, 20, 40, 22, 32),    4: (1, 24, 33, 30, 44),   5: (1, 28, 29, 38, 55),
+    6: (2, 8, 50, 14, 20),     7: (2, 11, 41, 24, 35),   8: (2, 14, 32, 36, 52),
+    9: (2, 17, 29, 46, 67),   10: (2, 20, 28, 56, 82),  11: (2, 23, 28, 64, 93),
+    12: (2, 26, 29, 72, 105), 13: (3, 6, 67, 10, 14),   14: (3, 8, 58, 18, 26),
+    15: (3, 10, 53, 26, 38),  16: (3, 12, 50, 34, 49),  17: (3, 15, 47, 46, 67),
+    18: (3, 20, 43, 66, 96),  19: (3, 26, 41, 90, 132), 20: (3, 32, 40, 114, 167),
+    21: (3, 38, 39, 138, 202), 22: (3, 44, 38, 162, 237), 23: (4, 6, 50, 22, 32),
+    24: (4, 8, 44, 34, 49),   25: (4, 10, 40, 46, 67),  26: (4, 12, 38, 58, 85),
+    27: (4, 15, 35, 76, 111), 28: (4, 20, 33, 106, 155),
+    29: (4, 26, 29, 136, 199), 30: (4, 32, 27, 166, 243),
+    31: (4, 38, 26, 196, 287), 32: (4, 44, 25, 226, 331), 33: (4, 50, 24, 250, 366),
+}
                                        # (default 3.0), h power-up 10 — the manual
                                        # gives no "Default:" for h, only the power-up
                                        # value; 10 is what a fresh printer uses.
@@ -368,7 +385,33 @@ def _render_barcode(f: dict, dpi: int, issues: list, default_orient: str = "N",
                                           f"can use text compaction; if the symbol comes out "
                                           f"blank, this is why"})
     elif sym == "micropdf417":
-        put("m", f.get("mode"), None, "mode", "error")
+        # ^BF p.111-112: the mode picks columns x rows, and each mode tops out at a
+        # fixed character count — mode 0 (the default) holds only 6 alphanumerics.
+        # Too much data prints NOTHING and reports no error, so pick/verify here.
+        n = len(str(f.get("data", "")))
+        digits_only = str(f.get("data", "")).isdigit()
+        cap_col = 4 if digits_only else 3                 # tuple = (cols, rows, ec%, alpha, digits)
+        if f.get("mode") is not None:
+            put("m", f.get("mode"), tuple(str(i) for i in range(34)), "mode", "error")
+            m = int(f.get("mode"))
+            cap = _MICROPDF_MODES.get(m)
+            if cap and n > cap[cap_col]:
+                issues.append({"severity": "error", "code": "BF_CAPACITY", "field": sym,
+                               "message": f"MicroPDF417 mode {m} holds at most "
+                                          f"{cap[cap_col]} {'digits' if digits_only else 'alphanumeric'} "
+                                          f"characters (p.112 Table 5); {n} given — the printer "
+                                          f"prints nothing for an over-capacity symbol"})
+        elif n:
+            fit = [m for m, cap in sorted(_MICROPDF_MODES.items())
+                   if n <= cap[cap_col]]
+            if fit:
+                params["m"] = str(fit[0])
+            else:
+                issues.append({"severity": "error", "code": "BF_CAPACITY", "field": sym,
+                               "message": f"MicroPDF417 tops out at "
+                                          f"{max(c[cap_col] for c in _MICROPDF_MODES.values())} "
+                                          f"characters (mode 33); {n} given — shorten the data "
+                                          f"or use ^B7 PDF417"})
     elif sym == "msi":
         put("e", str(f.get("check_digit", d["e"])).upper(), ("A", "B", "C", "D"),
             "check digit selection")
@@ -409,6 +452,16 @@ def _render_barcode(f: dict, dpi: int, issues: list, default_orient: str = "N",
     # interpretation line flags: f = below, g = above, but only on symbologies
     # whose Format line really gives them that meaning (^BL has g only, ^BO/^BX/
     # ^BR use those letters for other things).
+    if sym == "tlc39":
+        # ^BT p.141: the ^FD string must be <6 digits>,<serial>[,<more>]. Anything else
+        # and only the Code 39 half prints (or nothing at all) — with no error raised.
+        data_s = str(f.get("data", ""))
+        if not (len(data_s) >= 7 and data_s[:6].isdigit() and data_s[6] == ","):
+            issues.append({"severity": "error", "code": "BT_FORMAT", "field": sym,
+                           "message": "TLC39 data must be 6 digits, a comma, then the serial "
+                                      "(up to 25 alphanumerics): '123456,SN12345' (p.141), got "
+                                      f"{data_s[:20]!r}"})
+
     if params.get("f") is None and "f" in letters and sym not in (
             "datamatrix", "code49", "aztec", "qrcode", "gs1databar"):
         params["f"] = _bool(f.get("interpret"), d.get("f", "N"))

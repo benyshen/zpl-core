@@ -80,7 +80,8 @@ SAMPLE = {
     "upca": "01234567890", "upcext": "12345", "planet": "12345678901", "postnet": "123456789",
     "usps": "01234567094987654321", "aztec": "ABC", "pdf417": "ABC", "micropdf417": "ABC",
     "upsmaxicode": "ABC123", "datamatrix": "ABC", "qrcode": "ABC", "gs1databar": "0123456",
-    "tlc39": "12345ABC", "by": "1",
+    # ^BT p.141: 6-digit ECI + comma + serial, otherwise only the Code 39 half prints
+    "tlc39": "123456,SN12345", "by": "1",
 }
 built_ok = True
 for sym, data in SAMPLE.items():

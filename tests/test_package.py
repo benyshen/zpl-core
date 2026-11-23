@@ -150,7 +150,7 @@ check("no zebra_mcp references left in the package", not hits, ", ".join(hits) o
 
 out = subprocess.run([sys.executable, "-c", "import zpl_core; print(zpl_core.__version__)"],
                      capture_output=True, text=True)
-check("fresh interpreter imports the package", out.returncode == 0 and "0.3.1" in out.stdout,
+check("fresh interpreter imports the package", out.returncode == 0 and "0.3.2" in out.stdout,
       (out.stdout or out.stderr).strip()[:80])
 
 print()

@@ -1,6 +1,6 @@
 [project]
 name = "zpl-core"
-version = "0.3.1"
+version = "0.3.2"
 description = "ZPL II engine: build, validate, render and send Zebra labels. Stdlib-only core with optional render/OCR extras."
 readme = "README.md"
 requires-python = ">=3.10"
