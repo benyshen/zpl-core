@@ -237,7 +237,42 @@ COMMAND_NOTES: dict[str, dict] = {
             "notes": "Deletes stored formats (B=buffer, E=EPROM). Run outside ^XA/^XZ."},
     "^DS": {"page": 350, "name": "Directory List", "syntax": "^DS",
             "notes": "Lists stored files in printer memory. Run outside ^XA/^XZ."},
-    "^DF": {"page": 352, "name": "Delete File", "syntax": "^DF name", "notes": "Deletes one stored file."},
+    "^GF": {"page": 215, "name": "Graphic Field", "syntax": "^GFa,b,c,d,data",
+           "defaults": {"a": "A"},
+           "range": "a = A ASCII hex / B binary / C compressed binary; b,c 1-99999 bytes; "
+                    "d = bytes per row",
+           "notes": "Bitmap sent inline with the label. For ASCII downloads b must equal c, and "
+                    "c = bytes_per_row x rows: every row is byte-padded, 1 = black, MSB first. "
+                    "Costly over serial — a 2-inch 203 dpi logo is ~50 bytes/row, so download "
+                    "once with ~DG and recall with ^XG instead."},
+    "^XF": {"page": 372, "name": "Recall Format", "syntax": "^XFd:o.x",
+           "defaults": {"d": "search R:, E:, B:, A:"},
+           "range": "name 1-8 alphanumeric characters, extension fixed .ZPL",
+           "notes": "Recalls a format saved with ^DF and merges data into its ^FN fields: the "
+                    "calling format must carry ^FN for the merge to happen. Reduces transmission "
+                    "time, not formatting time. Note the name limit is 8 here but 16 in ^DF."},
+    "^FN": {"page": 200, "name": "Field Number", "syntax": '^FN#"a"',
+           "defaults": {"#": 0},
+           "range": "0-9999; optional quoted prompt up to 255 chars (KDU / Print on Label)",
+           "notes": "In a stored format use ^FN where you would use ^FD; when recalling, use ^FN "
+                    "together with ^FD. Several fields may share a number. Keep it under ~400 "
+                    "fields."},
+    "^HV": {"page": 239, "name": "Host Verification", "syntax": "^HV#,n,h,t,a",
+           "defaults": {"n": 64, "a": "F"},
+           "range": "n 1-256 bytes; h/t up to 3072 chars and ^FH-capable; a = F format / L label",
+           "notes": "Returns a numbered field's data to the host, so a headless terminal can "
+                    "compare the printer's copy with what it meant to print. Requires the field "
+                    "to have an ^FN. Set a = L to get one reply per label."},
+    "~HS": {"page": 233, "name": "Host Status", "syntax": "~HS",
+           "notes": "Three <STX>…<ETX> strings: comm settings/flags/label length, media type and "
+                    "print mode with queue counts, static RAM. IMPORTANT: the printer sends "
+                    "nothing at all when media or ribbon is out, the head is open, the rewinder "
+                    "is full or the head is over-temperature — silence is a diagnosis."},
+    "^DF": {"page": 174, "name": "Download Format", "syntax": "^DFd:o.x",
+            "defaults": {"d": "R:", "x": ".ZPL"},
+            "range": "device R:/E:/B:/A:; name 1-16 alphanumeric + extension",
+            "notes": "Saves the format as text for later ^XF merge; enter it immediately after "
+                     "^XA. Saves transmission time only. Pair with ^FN placeholders."},
     "^DD": {"page": 351, "name": "Download Format", "syntax": "^DD name",
             "notes": "Begins storing a format to memory; ends with ^END. Run outside ^XA/^XZ."},
     "^CD": {"page": 346, "name": "Capture Format", "syntax": "^CD name, [device]",

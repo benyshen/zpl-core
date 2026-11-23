@@ -25,7 +25,7 @@ from zpl_core import builder, knowledge, transport, xlsx_batch  # noqa: E402
 # ---------------------------------------------------------------- 版本与数据
 
 # post releases (.postN) are metadata-only bumps, so pin the series, not the exact string
-check("version is 0.2.0 series", zpl_core.__version__.startswith("0.2.0"), zpl_core.__version__)
+check("version is 0.3.0 series", zpl_core.__version__.startswith("0.3.0"), zpl_core.__version__)
 
 data_dir = Path(zpl_core.DATA_DIR)
 check("data dir sits inside the package",
@@ -150,7 +150,7 @@ check("no zebra_mcp references left in the package", not hits, ", ".join(hits) o
 
 out = subprocess.run([sys.executable, "-c", "import zpl_core; print(zpl_core.__version__)"],
                      capture_output=True, text=True)
-check("fresh interpreter imports the package", out.returncode == 0 and "0.2.0" in out.stdout,
+check("fresh interpreter imports the package", out.returncode == 0 and "0.3.0" in out.stdout,
       (out.stdout or out.stderr).strip()[:80])
 
 print()

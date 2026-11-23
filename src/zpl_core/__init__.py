@@ -5,6 +5,7 @@ One package, three consumers:
     zpl_core.builder    label spec -> ZPL II (mm->dots, 28 symbologies, ^A@ TrueType)
     zpl_core.knowledge  command catalog, defaults, barcode/status/SGD tables
     zpl_core.render     ZPL -> PNG preview            (extra: render)
+    zpl_core.raster     PNG/bitmap -> ^GFA graphic    (PIL for files: extra render)
     zpl_core.photo      photo of a label -> ZPL       (extra: ocr)
     zpl_core.transport  TCP 9100 / Windows RAW / USB / preview
     zpl_core.xlsx_batch one label per spreadsheet row  (pure stdlib)
@@ -22,21 +23,22 @@ from __future__ import annotations
 
 import importlib
 
-__version__ = "0.2.0.post0"
+__version__ = "0.3.0"
 
 from . import builder, catalog, knowledge, transport, xlsx_batch  # noqa: E402,F401
 from .paths import DATA_DIR, data_file  # noqa: E402,F401
 
 __all__ = [
     "__version__", "builder", "catalog", "knowledge", "transport", "xlsx_batch",
-    "render", "photo", "ocr", "vision", "DATA_DIR", "data_file",
+    "render", "raster", "photo", "ocr", "vision", "DATA_DIR", "data_file",
 ]
 
 # 重模块（Pillow / cv2 / onnxruntime）按需加载，import zpl_core 不拖时间
-_LAZY = {"render", "photo", "ocr", "vision"}
+_LAZY = {"render", "raster", "photo", "ocr", "vision"}
 
 # 每个懒加载模块依赖哪个 extra（缺依赖时据此给出可复制的安装命令）
-_EXTRA_FOR = {"render": "render", "photo": "ocr", "ocr": "ocr", "vision": "ocr"}
+_EXTRA_FOR = {"render": "render", "raster": "render", "photo": "ocr", "ocr": "ocr",
+              "vision": "ocr"}
 
 
 def __getattr__(name: str):

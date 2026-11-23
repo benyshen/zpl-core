@@ -2,6 +2,47 @@
 
 按 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/) 组织，版本号遵循语义化。
 
+## 0.3.0 — 2026-11-18
+
+端侧三件事：图片能打、模板能复用、打完能验。三件都对着手册实现（`^GF` p.215、`^DF` p.174、
+`^XF` p.372、`^FN` p.200、`~HS` p.233-236、`^HV` p.239），新增 `tests/test_edge.py` 守着。
+
+### 1. `^GF` 位图 / 图片
+
+- 新增 `zpl_core.raster`：PNG/JPEG 或 PIL 图像 → `Bitmap` → `^GFA,b,c,d,<hex>`。
+  `dither="threshold"`（logo/文字）或 `"floyd"`（照片，Floyd–Steinberg），支持缩放、反相。
+- **位图输入不需要任何依赖**：`raster.from_rows(["11110000", …])` 走纯 stdlib；只有读文件才要 `[render]`。
+- `builder` 的 `image` 字段现在有三条路：`name`（`^XGR` 调打印机里的图）、`path`（本地文件光栅化）、
+  `bitmap`（自带位图）。超过 `^GF` 上限（99999 字节）报错，超过 20000 字节警告并估算串口传输时间。
+
+### 2. `^DF` / `^XF` / `^FN` 模板变量
+
+- `build_template(spec, name=…)` → `(zpl, fields, issues)`：变量字段（`"var": "sku"` / `"fn": 3`）
+  在存储格式里只发 `^FN`，不发 `^FD`（手册 p.200）。
+- `fill_template(name, values, fields=…)` → 每次打印只发
+  `^XA^XFR:NAME.ZPL^FN1^FD…^FS^XZ`，几百字节；支持按编号或变量名赋值。
+- `template_field_map(spec)` 给表单用；`quantity` 归 recall 而不是模板（模板里会被剥掉并提示）。
+- 名字长度按手册校验：`^DF` 1-16、`^XF` 1-8，超过 8 字符在生成模板时警告、在 recall 时报错。
+
+### 3. 打印闭环：`~HS` + `^HV`
+
+- `transport.parse_host_status(raw)`：纯函数解析 `~HS` 三段串（通讯参数、媒体类型、打印模式、
+  队列里格式数、剩余张数、缺纸/头开/缺碳带/超温/暂停/缓冲区满/部分格式/RAM 损坏…），
+  每条错误带上 `knowledge.STATUS_NOTES` 里的 ZBI 码。
+- `transport.query_status(host)`：发 `~HS` 并解析；打印机会在缺纸/缺碳带/头开/卷满/超温时**完全不回话**
+  （p.233），这种情况单独报 `no_response` 并提示，不当成网络错误。
+- `transport.send_and_verify(host, zpl)`：就绪检查 → 发送（可重试）→ 轮询到空闲，返回
+  `stage`（preflight / send / print / printed）与时间线；打印机没就绪时**一个字节都不发**。
+- `transport.send_and_read(host, zpl, expect={…})`：读 `^HV` 回读的字段值，用来核对"打印机侧"的数据。
+- 字段支持 `"hv": {"bytes": 16, "header": "CODE[", "terminator": "]"}`，自动给字段分配 `^FN` 并发出
+  `^HV#,…`（header/terminator 走 `^FH` 转义）。
+
+### 测试
+
+- 新增 `tests/test_edge.py`：`^GF` 位图与上限、模板/回填/名字长度、`~HS` 解析、
+  以及用**假打印机**（本地 socket，会应答 `~HS` 并回显 `^HV`）跑通闭环的四种结局：
+  打印成功、打印机未就绪拒发、根本没有打印机、`require_ready=False` 时的发送失败。
+
 ## 0.2.0.post0 — 2026-11-18
 
 **只有文档 / 元数据，代码与 0.2.0 完全一致。** PyPI 的发布元数据不可修改，所以用 PEP 440 的

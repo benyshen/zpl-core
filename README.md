@@ -45,11 +45,12 @@ transport.send_tcp("192.168.1.50", zpl)    # 也支持 Windows RAW 队列 / USB 
 
 | 模块 | 做什么 | 额外依赖 |
 |---|---|---|
-| `builder` | 标签结构体 → ZPL II；mm→dots、29 种条码、`^A@` TrueType 中文、`^GB/^GC/^FO..z` 图形、`^FB` 域块 | — |
+| `builder` | 标签结构体 → ZPL II；mm→dots、29 种条码、`^A@` TrueType 中文、`^GB/^GC/^FO..z` 图形、`^FB` 域块、`^GF` 位图、`^DF`/`^XF`/`^FN` 模板、`^HV` 回读 | — |
 | `builder.validate_zpl` | 拿手册命令表校验原始 ZPL，返回 `issues[]`（severity + code） | — |
 | `knowledge` | 224 条手册命令（页码 + Format 参数）、71 条命令详解、28 种制式数据规则、27 条 SGD、13 个状态码 | — |
-| `transport` | TCP 9100、Windows RAW 队列（winspool）、USB 队列、写 `.zpl` 预览字节 | — |
+| `transport` | TCP 9100、Windows RAW 队列（winspool）、USB 队列、写 `.zpl` 预览字节；`~HS` 解析与打印闭环（就绪检查 → 发送 → 轮询到空闲）、`^HV` 回读 | — |
 | `xlsx_batch` | 一行一条标签，纯 `zipfile`+`xml` 读 xlsx，整批一条 ZPL 流 | — |
+| `raster` | PNG/JPEG 或位图 → `^GFA`（阈值 / Floyd–Steinberg 抖动 / 缩放）；位图输入纯 stdlib | 文件输入要 `[render]` |
 | `render` | ZPL → PNG，离线版式预览；支持 `N/R/I/B` 旋转、`^FB` 溢出与「字段出界」告警 | `[render]` |
 | `photo` | 标签照片 → ZPL（透视校正、字号推断、条码重建） | `[ocr]` |
 | `ocr` | PP-OCRv4 检测/识别（onnxruntime）+ zxing-cpp 条码兜底 | `[ocr]` |
@@ -73,6 +74,50 @@ transport.send_tcp("192.168.1.50", zpl)    # 也支持 Windows RAW 队列 / USB 
 {"type": "barcode", "symbology": "code128", "mode": "D", "data": "(02)040..."}       # UCC/EAN 模式
 ```
 
+## 端侧闭环：图片、模板、验真
+
+### 1. 把图片印上去 —— `^GF`
+
+```python
+{"type": "image", "path": "logo.png", "x_mm": 3, "y_mm": 3, "width_dots": 240}   # 需要 [render]
+{"type": "image", "bitmap": ["11110000", "00001111"], "x_mm": 3, "y_mm": 20}     # 自带位图，零依赖
+```
+
+`dither` 两种：`threshold`（logo/文字，边缘干净）与 `floyd`（照片，靠抖动保层次）。输出是
+`^FO…^GFA,b,c,d,<hex>^FS`，每行按字节补齐、`b = c = 每行字节数 × 行数`（`^GF` p.215，上限 99999 字节）。
+超过 20000 字节会警告并算出串口传输耗时——大图应该 `~DG` 下载一次、之后用 `^XGR` 调用。
+
+### 2. 一次下载、反复打印 —— `^DF`/`^XF`/`^FN`
+
+```python
+zpl, fields, issues = builder.build_template(spec, name="SHIP")   # 变量字段写 "var": "sku"
+transport.send_tcp(host, zpl)                                      # 只在装机时发一次
+
+recall, _ = builder.fill_template("SHIP", {"sku": "A-1", "code": "693402451212"},
+                                  fields=fields, quantity=4)
+transport.send_tcp(host, recall)     # ^XA^XFR:SHIP.ZPL^FN1^FDA-1^FS…^XZ，几百字节
+```
+
+`fields` 是 `{^FN 编号: 变量名}`，`template_field_map(spec)` 可以单独取出（给表单/前端用）。
+存储格式里变量字段只发 `^FN`、不发 `^FD`（手册 p.200），字面字段照常。名字要注意：`^DF` 接受 1-16 字符，
+但 `^XF` 只能收回 1-8 字符（p.372），超了会给警告/错误。
+
+### 3. 打完到底出来没有 —— `~HS` + `^HV`
+
+```python
+res = transport.send_and_verify(host, zpl, max_wait=20)
+res["ok"], res["stage"]      # stage: preflight / send / print / printed
+res["status"]["errors"]      # [{'name': 'PAPER OUT', 'zbi_code': '0003', …}]
+
+back = transport.send_and_read(host, zpl_with_hv,
+                               expect={"header": "CODE[", "terminator": "]"})
+back["values"]               # 打印机回读的字段值，拿来和你要打的值比对
+```
+
+`send_and_verify` 会先查 `~HS`：纸/碳带/头/暂停任一异常就**拒绝发送**（`stage="preflight"`），
+发完再轮询到「格式队列为空、剩余张数为 0」才算 `printed`。`parse_host_status()` 是纯函数，
+可以脱离打印机单测；对手册里"打印机会完全不回话"的五种状态（缺纸、缺碳带、头开、卷满、超温）也会给出提示。
+
 ## 数据在哪
 
 `zpl_core/data/` 随包安装：
@@ -90,14 +135,17 @@ pip install -e ".[all]"
 python tests/test_engine.py     # 31 组 ZPL 生成断言（不需要打印机）
 python tests/test_package.py    # 包级不变量：数据随包、懒加载边界、命令表与目录一致、无旧命名残留
 python tests/test_manual.py     # 手册合规：Format 字母 / 页码 / 默认值逐条比对 + 30 余条回归
+python tests/test_edge.py       # ^GF 位图 / 模板变量 / ~HS 闭环（假打印机，无需硬件）
 ```
 
 ## 边界
 
-- 只做 ZPL II / Link-OS 打印链路：不做 RFID 编码、SNMP 监控、`^GF` 位图流、字体下载。
+- 只做 ZPL II / Link-OS 打印链路：不做 RFID 编码、SNMP 监控、字体下载。
 - `validate_zpl` 通过 **不等于** 码能扫：静区、模块宽、纠错级只有纸和扫码枪能确认。
 - `render` 是版式渲染器，不是 ZPL 模拟器：它画本引擎会产生的命令子集，画不了的在 `approximated` 里明说。
 - `photo` 识别出的文字一律当"未核对"，出纸前逐字念一遍。
+- `send_and_verify` 的"已打印"以打印机的 `~HS` 为准；`^HV` 回读的是打印机侧的字段值。
+  两者都比"字节发出去了"强，但都不等于"码能扫"——那还是得扫码枪。
 
 ## 免责声明
 

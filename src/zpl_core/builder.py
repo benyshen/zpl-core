@@ -210,7 +210,8 @@ def escape_data(data: str, hex_indicator: str | None) -> str:
     return data, used_hex
 
 
-def _render_barcode(f: dict, dpi: int, issues: list, default_orient: str = "N") -> tuple[str, bool]:
+def _render_barcode(f: dict, dpi: int, issues: list, default_orient: str = "N",
+                    *, tpl: bool = False) -> tuple[str, bool]:
     sym = str(f.get("symbology", "code128")).lower()
     spec = BARCODE_SPECS.get(sym)
     if spec is None:
@@ -433,7 +434,65 @@ def _render_barcode(f: dict, dpi: int, issues: list, default_orient: str = "N") 
     if any(k in f for k in ("x_mm", "x_dots", "y_mm", "y_dots")):
         x, y = _xy(f, dpi)
         pos = f"^FO{x},{y}{_fz(f)}"
-    return pos + by_prefix + cmd + fh + "^FD" + data + "^FS", used_hex
+    fn = f.get("fn")
+    fn_part = f"^FN{int(fn)}" if fn is not None else ""
+    data_part = "" if (tpl and fn is not None) else "^FD" + data
+    return pos + by_prefix + cmd + fh + fn_part + data_part + "^FS", used_hex
+
+
+def _render_image_field(f: dict, dpi: int, issues: list, src, bits) -> str:
+    """^GF p.215: a rasterised picture as one field (^FO … ^GFA … ^FS).
+
+    The payload is ASCII hex, so it is *bytes inside the ZPL stream* — a 2-inch
+    wide 203 dpi logo is ~50 bytes per row and grows fast. Two consequences the
+    caller usually has not thought about: a 900-dot tall logo is 45 KB over the
+    wire (minutes on a 9600 baud link), and ^GF caps b/c at 99999 bytes.
+    """
+    from . import raster          # local import: raster pulls PIL only when used
+
+    if bits:
+        rows = list(bits)
+        width = f.get("width_dots") or f.get("bitmap_width") or (
+            len(rows[0]) if isinstance(rows[0], str) else None)
+        bmp = raster.from_rows(rows, width=int(width) if width else None)
+    else:
+        w_dots = f.get("width_dots") or (mm2dots(f["width_mm"], dpi) if f.get("width_mm") else None)
+        h_dots = f.get("height_dots") or (mm2dots(f["height_mm"], dpi) if f.get("height_mm") else None)
+        try:
+            bmp = raster.from_path(
+                src,
+                width_dots=int(w_dots) if w_dots else None,
+                height_dots=int(h_dots) if h_dots else None,
+                mode=f.get("dither") or f.get("mode") or "threshold",
+                threshold=int(f.get("threshold", 128)),
+                invert=bool(f.get("invert", False)),
+            )
+        except FileNotFoundError:
+            issues.append({"severity": "error", "code": "IMG_PATH", "field": "image",
+                           "message": f"image file not found: {src}"})
+            return ""
+        except (ValueError, OSError) as exc:
+            issues.append({"severity": "error", "code": "IMG_READ", "field": "image",
+                           "message": f"cannot read image {src}: {type(exc).__name__}: {exc}"})
+            return ""
+
+    x, y = _xy(f, dpi)
+    try:
+        gfa = bmp.to_gfa(x, y)
+    except ValueError as exc:                     # > 99999 bytes (^GF p.215)
+        issues.append({"severity": "error", "code": "GF_SIZE", "field": "image",
+                       "message": f"{bmp.width}x{bmp.height} dots is too big for ^GF: {exc}"})
+        return ""
+
+    baud = int(f.get("baud") or 115200)
+    seconds = bmp.nbytes * 2 / max(baud, 1) * 10        # 2 hex chars/byte, 10 bits/char
+    if bmp.nbytes > 20000:
+        issues.append({"severity": "warning", "code": "GF_PAYLOAD", "field": "image",
+                       "message": f"{bmp.width}x{bmp.height} dots = {bmp.nbytes} bytes of hex "
+                                  f"({2 * bmp.nbytes} chars); at {baud} baud that is about "
+                                  f"{seconds:.0f}s of transfer per label — scale it down or "
+                                  f"download it once with ~DG and recall it with ^XGR"})
+    return gfa + "^FS"
 
 
 def _fz(f: dict) -> str:
@@ -451,7 +510,7 @@ def _fz(f: dict) -> str:
     return f",{z}"
 
 
-def _render_text(f: dict, dpi: int, issues: list) -> tuple[str, bool]:
+def _render_text(f: dict, dpi: int, issues: list, *, tpl: bool = False) -> tuple[str, bool]:
     font_file = f.get("font_file")  # ^A@ (p.62): call a downloadable/resident font by full name
     if font_file:
         name = str(font_file).strip().upper()
@@ -558,8 +617,14 @@ def _render_text(f: dict, dpi: int, issues: list) -> tuple[str, bool]:
     if f.get("reverse"):
         # ^FR p.203: "applies to only one field and has to be specified each time"
         parts.append("^FR")
+    fn = f.get("fn")
+    if fn is not None:
+        # ^FN p.200: in a stored format it replaces ^FD; when recalling (or when a
+        # later ^HV needs to address the field) it sits in front of ^FD instead.
+        parts.append(f"^FN{int(fn)}")
     parts.append("^FH" if used_hex else "")
-    parts.append("^FD" + data)
+    if not (tpl and fn is not None):        # only variable fields lose their data
+        parts.append("^FD" + data)
     parts.append("^FS")
     return "".join(parts), used_hex
 
@@ -612,7 +677,7 @@ def _is_cjk(s: str) -> bool:
     return any(ord(c) > 0x2E80 for c in str(s))
 
 
-def build_label(spec: dict) -> tuple[str, list]:
+def build_label(spec: dict, *, _template: bool = False) -> tuple[str, list]:
     """Build ZPL II from a label spec. Returns (zpl, issues[]).
 
     Spec keys (mm for sizes, auto-converted to dots at label['dpi']):
@@ -743,13 +808,26 @@ def build_label(spec: dict) -> tuple[str, list]:
         # ^MM b is the prepeel select (p.305), not a media-loss flag
         out.append(f"^MM{mode},{_bool(pm.get('prepeel', pm.get('media_loss')), 'N')}")
 
+    # Copy the field dicts: ^HV needs an ^FN number, and numbering a caller's
+    # spec in place would surprise anyone reusing it.
+    fields = [dict(f) for f in spec.get("fields", [])]
+    taken = {int(f["fn"]) for f in fields if f.get("fn") is not None}
+    nxt = 1
+    for f in fields:
+        if f.get("hv") and f.get("fn") is None:
+            while nxt in taken:
+                nxt += 1
+            f["fn"] = nxt
+            taken.add(nxt)
+            nxt += 1
+
     used_hex = False
-    for f in spec.get("fields", []):
+    for f in fields:
         t = str(f.get("type", "text")).lower()
         if t == "text":
-            chunk, uh = _render_text(f, dpi, issues)
+            chunk, uh = _render_text(f, dpi, issues, tpl=_template)
         elif t == "barcode":
-            chunk, uh = _render_barcode(f, dpi, issues, default_orient)
+            chunk, uh = _render_barcode(f, dpi, issues, default_orient, tpl=_template)
         elif t in ("note", "box"):
             chunk, uh = _render_box(f, dpi), False
         elif t == "circle":
@@ -762,17 +840,30 @@ def build_label(spec: dict) -> tuple[str, list]:
                            "message": "^FR applies to a single field (^FR p.203); put "
                                       "\"reverse\": true on the field instead of a separate field"})
         elif t == "image":
+            # three ways to get a picture onto the label:
+            #   name     -> ^XGR recalls a graphic already in printer memory
+            #   path/file-> rasterised here into ^GFA (needs the [render] extra)
+            #   bitmap/rows -> caller already has bits; stdlib only
             name = f.get("name", "")
-            chunk, uh = (f"^FO{_xy(f, dpi)[0]},{_xy(f, dpi)[1]}^XGR:{name},1,1^FS" if name else ""), False
-            if not name:
-                issues.append({"severity": "error", "code": "IMG_NAME", "field": "image",
-                               "message": "image field needs 'name' (download first via printer_graphics)"})
+            src = f.get("path") or f.get("file") or f.get("src")
+            bits = f.get("bitmap") or f.get("rows")
+            if src or bits:
+                chunk, uh = _render_image_field(f, dpi, issues, src, bits), False
+            else:
+                chunk, uh = (f"^FO{_xy(f, dpi)[0]},{_xy(f, dpi)[1]}^XGR:{name},1,1^FS" if name else ""), False
+                if not name:
+                    issues.append({"severity": "error", "code": "IMG_NAME", "field": "image",
+                                   "message": "image field needs 'name' (a graphic already in "
+                                              "printer memory), or 'path' (a file to rasterise "
+                                              "into ^GFA, needs [render]), or 'bitmap'"})
         else:
             issues.append({"severity": "error", "code": "FIELD_TYPE", "field": t,
                            "message": f"unknown field type '{t}' (text/barcode/note/box/circle/image/reverse)"})
             continue
         used_hex |= uh
         out.append(chunk)
+        if f.get("hv"):
+            out.append(_hv_cmd(f.get("fn"), f["hv"], issues))
 
     q = int(spec.get("quantity", 1))
     if not (1 <= q <= 99999999):
@@ -799,7 +890,7 @@ def build_label(spec: dict) -> tuple[str, list]:
     zpl = "".join(out)
 
     # symbology-specific data rules (manual comments + common practice)
-    for f in spec.get("fields", []):
+    for f in fields:
         if str(f.get("type", "text")).lower() != "barcode":
             continue
         sym = str(f.get("symbology", "")).lower()
@@ -846,6 +937,189 @@ def build_label(spec: dict) -> tuple[str, list]:
                            "message": "field data contains ^ or ~ — hex escaping was disabled "
                                       "(no_hex); those characters terminate the field and were stripped"})
     return zpl, issues
+
+
+# ---------------------------------------------------------------------------
+# ^DF / ^XF / ^FN — stored formats with variables (p.174 / p.372 / p.200)
+# ---------------------------------------------------------------------------
+TEMPLATE_EXT = ".ZPL"
+TEMPLATE_DEVICES = ("R", "E", "B", "A")
+_NAME_RE = re.compile(r"^[A-Za-z0-9_.\-]{1,16}$")   # ^DF p.174: 1-16 alphanumeric
+RECALL_NAME_MAX = 8                                  # ^XF p.372: 1-8 alphanumeric
+
+
+def _field_var(f: dict):
+    return f.get("var", f.get("bind", f.get("variable")))
+
+
+def _assign_fn(spec: dict) -> tuple[list, dict]:
+    """Copy the fields, give every variable field an ^FN number, name them.
+
+    Returns ``(fields, {fn: name})``. A field becomes a variable when it has
+    ``var`` (a name), an explicit ``fn`` number, or an ``hv`` block (^HV has to
+    address a numbered field).
+    """
+    fields = [dict(f) for f in spec.get("fields", [])]
+    taken = {int(f["fn"]) for f in fields if f.get("fn") is not None}
+    nxt = 1
+    for f in fields:
+        if f.get("fn") is None and (_field_var(f) is not None or f.get("hv")):
+            while nxt in taken:
+                nxt += 1
+            f["fn"] = nxt
+            taken.add(nxt)
+            nxt += 1
+    names = {}
+    for f in fields:
+        if f.get("fn") is not None:
+            var = _field_var(f)
+            names[int(f["fn"])] = str(var) if var is not None else f"field{int(f['fn'])}"
+    return fields, names
+
+
+def template_field_map(spec: dict) -> dict:
+    """``{^FN number: variable name}`` — the form a caller has to fill in."""
+    return _assign_fn(spec)[1]
+
+
+def _template_target(name, device, issues, *, recall: bool) -> tuple[str, str]:
+    dev = str(device or "R").upper().rstrip(":")
+    if dev not in TEMPLATE_DEVICES:
+        issues.append({"severity": "error", "code": "DF_DEVICE", "field": "template",
+                       "message": f"device must be R/E/B/A (^DF p.174), got {device!r}"})
+        dev = "R"
+    stem = str(name or "LABEL").strip()
+    if stem.upper().endswith(TEMPLATE_EXT):
+        stem = stem[: -len(TEMPLATE_EXT)]
+    if not _NAME_RE.match(stem):
+        issues.append({"severity": "error", "code": "DF_NAME", "field": "template",
+                       "message": f"template name {stem!r} must be 1-16 alphanumeric "
+                                  f"characters (. _ - allowed) (^DF p.174)"})
+        stem = "LABEL"
+    elif recall and len(stem) > RECALL_NAME_MAX:
+        issues.append({"severity": "error", "code": "XF_NAME", "field": "template",
+                       "message": f"name {stem!r} is {len(stem)} characters; ^XF can only "
+                                  f"recall 1-{RECALL_NAME_MAX} (^XF p.372) — shorten it or "
+                                  f"store it under another name"})
+    elif len(stem) > RECALL_NAME_MAX:
+        issues.append({"severity": "warning", "code": "XF_NAME", "field": "template",
+                       "message": f"name {stem!r} is {len(stem)} characters; ^DF stores up to "
+                                  f"16 but ^XF can only recall 1-{RECALL_NAME_MAX} (p.372)"})
+    return dev, stem
+
+
+def build_template(spec: dict, *, name: str = "LABEL", device: str = "R") -> tuple[str, dict, list]:
+    """Build a **stored format** with ^FN placeholders: ``(zpl, fields, issues)``.
+
+    Send the result once (``~DY``-style download is not needed; ^DF stores it as
+    text on the printer). Afterwards every label is a few hundred bytes:
+
+        zpl, fields, issues = build_template(spec, name="SHIP")
+        send(zpl)                                   # once
+        send(fill_template("SHIP", {"sku": "A-1"}, fields=fields)[0])
+
+    ``fields`` maps each ^FN number to the field's ``var`` name. Fields without a
+    ``var`` keep their literal data and are printed as-is. Per the manual the
+    stored format carries ``^FN`` *instead of* ``^FD`` (p.200), so any literal
+    data on a variable field is intentionally dropped.
+    """
+    issues: list = []
+    dev, stem = _template_target(name, device, issues, recall=False)
+    fields, names = _assign_fn(spec)
+    if not names:
+        issues.append({"severity": "warning", "code": "DF_EMPTY", "field": "template",
+                       "message": "no field has 'var'/'fn'/'hv', so this template has no "
+                                  "variables — every recall would print the same label"})
+    spec2 = {k: v for k, v in spec.items() if k != "quantity"}
+    if spec.get("quantity") not in (None, 1):
+        issues.append({"severity": "warning", "code": "PQ_IN_TEMPLATE", "field": "template",
+                       "message": "quantity belongs to the recall (fill_template), not to the "
+                                  "stored format — dropped from the template"})
+    spec2["fields"] = fields
+    zpl, iss = build_label(spec2, _template=True)
+    issues.extend(iss)
+    zpl = zpl.replace("^XA", f"^XA^DF{dev}:{stem}{TEMPLATE_EXT}", 1)
+    return zpl, names, issues
+
+
+def fill_template(name: str, values: dict, *, device: str = "R",
+                  fields: dict | None = None, quantity: int | None = None) -> tuple[str, list]:
+    """Recall a stored format and merge ``values`` into it: ``(zpl, issues)``.
+
+    ``values`` may be keyed by ^FN number (``{1: "A-1"}``) or by variable name
+    (``{"sku": "A-1"}``) when ``fields`` — the mapping returned by
+    ``build_template`` — is passed along.
+    """
+    issues: list = []
+    dev, stem = _template_target(name, device, issues, recall=True)
+    rev = {str(v): int(k) for k, v in (fields or {}).items()}
+    pairs, unknown = [], []
+    for key, val in values.items():
+        if isinstance(key, int) or str(key).isdigit():
+            pairs.append((int(key), str(val)))
+        elif str(key) in rev:
+            pairs.append((rev[str(key)], str(val)))
+        else:
+            unknown.append(str(key))
+    if unknown:
+        hint = f"; known variables: {sorted(rev)}" if rev else \
+               " — pass fields=... from build_template to use names"
+        issues.append({"severity": "error", "code": "FN_UNKNOWN", "field": "template",
+                       "message": f"no ^FN field for {unknown}{hint}"})
+    if not pairs:
+        issues.append({"severity": "warning", "code": "FN_EMPTY", "field": "template",
+                       "message": "no values given; the recall will print empty fields"})
+
+    parts = ["^XA", f"^XF{dev}:{stem}{TEMPLATE_EXT}"]
+    for fn, val in sorted(pairs):
+        data, used_hex = escape_data(val, "_")
+        parts.append(f"^FN{fn}{'^FH' if used_hex else ''}^FD{data}^FS")
+    if quantity is not None:
+        q = int(quantity)
+        if not (1 <= q <= 99999999):
+            issues.append({"severity": "error", "code": "PQ", "field": "template",
+                           "message": f"quantity {q} outside 1-99999999 (^PQ p.324)"})
+        elif q != 1:
+            parts.append(f"^PQ{q}")
+    parts.append("^XZ")
+    return "".join(parts), issues
+
+
+def _hv_cmd(fn, hv, issues: list) -> str:
+    """^HV p.239: ``^HV#,n,h,t,a`` — return a field's data to the host.
+
+    This is how a headless terminal proves what it printed: the printer echoes
+    the field's *actual* data (after any ^FN merge), not what the host thinks it
+    sent. ``h``/``t`` are ^FH-capable, so ^ ~ _ are hex-escaped here.
+    """
+    cfg = {} if hv is True else dict(hv)
+    n = int(cfg.get("bytes", cfg.get("n", 64)))
+    if not (1 <= n <= 256):
+        issues.append({"severity": "error", "code": "HV_BYTES", "field": "hv",
+                       "message": f"^HV returns 1-256 bytes (p.239), got {n}"})
+        n = 64
+    header = str(cfg.get("header", ""))
+    term = str(cfg.get("terminator", ""))
+    scope = str(cfg.get("per", "L")).upper()
+    if scope not in ("F", "L"):
+        issues.append({"severity": "warning", "code": "HV_SCOPE", "field": "hv",
+                       "message": f"^HV scope must be F (format) or L (label), got {scope!r}"})
+        scope = "L"
+
+    def esc(s: str) -> tuple[str, bool]:
+        out, used = [], False
+        for ch in s:
+            if ch in "^~_":
+                out.append(f"_{ord(ch):02X}")
+                used = True
+            else:
+                out.append(ch)
+        return "".join(out), used
+
+    h, h_used = esc(header)
+    t, t_used = esc(term)
+    cmd = f"^HV{int(fn)},{n},{h},{t},{scope}"
+    return ("^FH" if (h_used or t_used) else "") + cmd + "^FS"
 
 
 def validate_label(spec: dict) -> list:
