@@ -296,13 +296,13 @@ def _render_barcode(f: dict, dpi: int, issues: list, default_orient: str = "N",
         put("g", f.get("escape_char"), None, "escape sequence")
         put("a", f.get("aspect_ratio"), ("1", "2"), "aspect ratio")
     elif sym == "qrcode":
-        put("c", f.get("scale"), None, "magnification")
+        put("c", f.get("scale", f.get("magnification")), None, "magnification")
         put("d", str(f.get("ec_level", d["d"])).upper(), ("H", "Q", "M", "L"),
             "error correction", "error")
         put("b", f.get("model"), ("1", "2"), "model")
         put("e", f.get("mask"), None, "mask")
     elif sym == "aztec":
-        put("b", f.get("scale"), None, "magnification")
+        put("b", f.get("scale", f.get("magnification")), None, "magnification")
         if f.get("eci") is not None:
             put("c", _bool(f["eci"], "N"), ("Y", "N"), "ECI indicator")
         put("d", f.get("error_control"), None, "error control")
@@ -311,7 +311,7 @@ def _render_barcode(f: dict, dpi: int, issues: list, default_orient: str = "N",
         put("f", f.get("symbols"), None, "number of symbols")
         put("g", f.get("id_field"), None, "ID field")
     elif sym == "pdf417":
-        put("s", f.get("security_level"), None, "security level")
+        put("s", f.get("security_level", f.get("security")), None, "security level")
         put("c", f.get("columns"), None, "columns")
         put("r", f.get("row_ratio"), None, "row height ratio")
         if f.get("truncate") is not None:
