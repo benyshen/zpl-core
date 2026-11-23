@@ -69,6 +69,8 @@ python scripts/extract_commands.py "zpl-zbi2-pg-en-202609.pdf"
 | 调格式 | `^XFd:o.x` | p.372 | **名字只能 1-8 字符**（和 `^DF` 的 16 不一致，超长在 recall 时直接报错）；调用格式里必须带 `^FN` 才能合并 |
 | 变量 | `^FN#"a"` | p.200 | 存储格式里用它**代替** `^FD`；recall 时 `^FN` + `^FD` 一起用；编号 0-9999；建议 ≤400 个字段 |
 | 回读 | `^HV#,n,h,t,a` | p.239 | 必须指向一个 `^FN` 字段；n 1-256；h/t 支持 `^FH`；a=F 每格式 / L 每张 |
+| PDF417 | `^B7o,h,s,c,r,t` | p.79-80 | **h 是单行高度**（不是整条码高度）；s 纠错 1-8，默认 0 只检错；r 是**行数** 3-90；模块宽度由 `^BY` 决定 |
+| MicroPDF417 | `^BFo,h,m` | p.111 | h 同样是单行高度 |
 | 状态 | `~HS` | p.233-236 | 三段 `<STX>…<ETX>`：通讯参数+标志+标签长度 / 媒体类型+打印模式+队列 / 静态 RAM |
 
 `~HS` 那条最容易踩：手册明确说打印机在 **MEDIA OUT / RIBBON OUT / HEAD OPEN / REWINDER FULL /

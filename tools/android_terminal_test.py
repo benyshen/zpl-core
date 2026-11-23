@@ -115,13 +115,23 @@ def build_sample_payloads() -> tuple[dict[str, str], list]:
     ]})
     files["l4_qr.zpl"] = qr
 
-    # --- PDF417：多字段定长记录，PDF417 的典型用法 ---
-    pdf, pi = builder.build_label({"dpi": DPI, "width_mm": 60, "height_mm": 40, "fields": [
-        {"type": "text", "data": "PDF417  ^B7", "x_mm": 3, "y_mm": 2, "size_mm": 3},
-        {"type": "barcode", "symbology": "pdf417", "data": PDF_PAYLOAD,
-         "x_mm": 3, "y_mm": 8, "height_mm": 8, "security_level": 2,
-         "hv": {"bytes": 96, "header": "P[", "terminator": "]"}},
-        {"type": "text", "data": "ZPL-CO", "x_mm": 3, "y_mm": 30, "size_mm": 2.4},
+    # --- PDF417：一条标签放两版，扫不动时能直接对比是参数问题还是纸/碳带问题 ---
+    # 手册 p.79：h 是"一行"的高度，不是整条码高度；模块宽度来自 ^BY（不发就继承打印机状态）。
+    #   A: ^BY2，6 列 x 6 行，行高 12 点 -> 274 x 72 dots（34.8 x 9.1 mm）
+    #   B: ^BY3，6 列 x 6 行，行高 15 点 -> 411 x 90 dots（52.2 x 11.4 mm）
+    pdf, pi = builder.build_label({"dpi": DPI, "width_mm": 60, "height_mm": 50, "fields": [
+        {"type": "text", "data": "PDF417  A:^BY2  B:^BY3", "x_mm": 3, "y_mm": 1.5,
+         "size_mm": 2.6},
+        {"type": "barcode", "symbology": "pdf417", "data": PDF_PAYLOAD, "x_mm": 3, "y_mm": 6,
+         "module_width": 2, "columns": 6, "rows": 6, "row_height_dots": 12,
+         "security_level": 2, "hv": {"bytes": 96, "header": "P[", "terminator": "]"}},
+        {"type": "text", "data": "A  module 2  6x6  row 12", "x_mm": 3, "y_mm": 15.6,
+         "size_mm": 2.4},
+        {"type": "barcode", "symbology": "pdf417", "data": PDF_PAYLOAD, "x_mm": 3, "y_mm": 22,
+         "module_width": 3, "columns": 6, "rows": 6, "row_height_dots": 15,
+         "security_level": 2},
+        {"type": "text", "data": "B  module 3  6x6  row 15", "x_mm": 3, "y_mm": 34.2,
+         "size_mm": 2.4},
     ]})
     files["l5_pdf417.zpl"] = pdf
     return files, [("l4", i) for i in qi] + [("l5", i) for i in pi]

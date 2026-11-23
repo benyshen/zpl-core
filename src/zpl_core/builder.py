@@ -211,7 +211,7 @@ def escape_data(data: str, hex_indicator: str | None) -> str:
 
 
 def _render_barcode(f: dict, dpi: int, issues: list, default_orient: str = "N",
-                    *, tpl: bool = False) -> tuple[str, bool]:
+                    *, tpl: bool = False, label_dots: int | None = None) -> tuple[str, bool]:
     sym = str(f.get("symbology", "code128")).lower()
     spec = BARCODE_SPECS.get(sym)
     if spec is None:
@@ -236,6 +236,11 @@ def _render_barcode(f: dict, dpi: int, issues: list, default_orient: str = "N",
         ratio_s = f"{ratio:g}" if isinstance(ratio, float) else str(ratio)
         bh = int(f.get("bar_height", BY_H))
         by_prefix = f"^BY{mw},{ratio_s},{bh}"
+    elif sym in ("pdf417", "micropdf417"):
+        issues.append({"severity": "warning", "code": "BY_UNSET", "field": sym,
+                       "message": f"{spec['name']}: no module_width given, so the module comes from "
+                                  f"whatever ^BY is still in effect on the printer — set "
+                                  f"module_width (2-3 dots at 200/300 dpi) for reproducible output"})
 
     # Orientation: which letter carries it comes from the manual's Format line
     # (^B9/^BR/^BQ/^BO use 'a' or lead with 'o'; ^BD MaxiCode has none at all).
@@ -262,13 +267,33 @@ def _render_barcode(f: dict, dpi: int, issues: list, default_orient: str = "N",
                                   f"(manual Format line {spec['page']})"})
 
     h_max = spec.get("h_max", BARCODE_H_MAX)
-    # bar height override (else ^BY h is used, manual default 10 dots)
-    if "height_dots" in f or "height_mm" in f:
+    # Bar height override (else ^BY h is used, manual default 10 dots).
+    # For the stacked 2D codes h is the height of ONE ROW, not of the symbol:
+    # "^B7 ... h = bar code height for individual rows (in dots)" (p.79, ^BF p.111).
+    # Treating it as the total height makes the symbol grow as rows x h, which
+    # silently runs off the label and prints an unscannable stub.
+    stacked = sym in ("pdf417", "micropdf417")
+    h = None
+    if "row_height_dots" in f or "row_height_mm" in f:
+        h = int(f["row_height_dots"]) if "row_height_dots" in f else mm2dots(f["row_height_mm"], dpi)
+    elif "height_dots" in f or "height_mm" in f:
         h = int(f["height_dots"]) if "height_dots" in f else mm2dots(f["height_mm"], dpi)
+        if stacked:
+            issues.append({"severity": "warning", "code": "ROW_HEIGHT", "field": sym,
+                           "message": f"{spec['name']}: {spec['cmd']} h is the height of one ROW, "
+                                      f"not of the whole symbol ({spec['page']}), so this means "
+                                      f"{h} dots per row x however many rows the data needs — "
+                                      f"use row_height_dots/row_height_mm to say so explicitly"})
+    if h is not None:
         if not (1 <= h <= h_max):
             issues.append({"severity": "error", "code": "BC_HEIGHT", "field": sym,
                            "message": f"barcode height {h} outside 1-{h_max} dots ({spec['cmd']} {spec['page']})"})
             h = max(1, min(h_max, h))
+        if stacked and label_dots and h * 4 > label_dots:
+            issues.append({"severity": "warning", "code": "ROW_TOO_TALL", "field": sym,
+                           "message": f"{spec['name']}: {h} dots per row x at least 4 rows = "
+                                      f"{h * 4} dots, more than the {label_dots}-dot label — the "
+                                      f"symbol will be clipped and cannot be scanned"})
         params["h"] = str(h)
 
     # ---- per-symbology parameters, keyed by the manual's letters ----
@@ -313,7 +338,7 @@ def _render_barcode(f: dict, dpi: int, issues: list, default_orient: str = "N",
     elif sym == "pdf417":
         put("s", f.get("security_level", f.get("security")), None, "security level")
         put("c", f.get("columns"), None, "columns")
-        put("r", f.get("row_ratio"), None, "row height ratio")
+        put("r", f.get("rows", f.get("row_ratio")), None, "number of rows")
         if f.get("truncate") is not None:
             put("t", _bool(f["truncate"], "N"), ("Y", "N"), "truncate")
     elif sym == "micropdf417":
@@ -827,7 +852,9 @@ def build_label(spec: dict, *, _template: bool = False) -> tuple[str, list]:
         if t == "text":
             chunk, uh = _render_text(f, dpi, issues, tpl=_template)
         elif t == "barcode":
-            chunk, uh = _render_barcode(f, dpi, issues, default_orient, tpl=_template)
+            chunk, uh = _render_barcode(
+                f, dpi, issues, default_orient, tpl=_template,
+                label_dots=mm2dots(spec["height_mm"], dpi) if spec.get("height_mm") else None)
         elif t in ("note", "box"):
             chunk, uh = _render_box(f, dpi), False
         elif t == "circle":

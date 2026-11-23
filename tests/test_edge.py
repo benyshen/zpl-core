@@ -171,6 +171,37 @@ check("^HV byte count outside 1-256 errors",
           builder.build_label({"dpi": 203, "fields": [
               {"type": "text", "data": "x", "hv": {"bytes": 999}}]})[1]))
 
+# ---------------------------------------- stacked 2D: h is one ROW (p.79/111)
+print("\n-- ^B7/^BF: row height, rows, module width --")
+pdf_spec = {"dpi": 200, "width_mm": 60, "height_mm": 50, "fields": [
+    {"type": "barcode", "symbology": "pdf417", "data": "ZPL-CORE|0.3.0|PDF417",
+     "x_mm": 3, "y_mm": 6, "module_width": 2, "columns": 6, "rows": 6,
+     "row_height_dots": 12, "security_level": 2}]}
+pdf_zpl, pdf_iss = builder.build_label(pdf_spec)
+check("^BY is emitted before the symbol", "^BY2,3,10^B7N,12,2,6,6" in pdf_zpl, pdf_zpl)
+check("row_height_dots goes into h (one row, not the symbol)",
+      ",12," in pdf_zpl.split("^B7")[1][:12], pdf_zpl.split("^B7")[1][:20])
+check("rows maps to r, not a ratio", pdf_zpl.split("^B7")[1].startswith("N,12,2,6,6"),
+      pdf_zpl.split("^B7")[1][:14])
+check("no warnings for a fully specified symbol",
+      not [i for i in pdf_iss if i["severity"] in ("error", "warning")], str(pdf_iss))
+
+legacy, legacy_iss = builder.build_label({"dpi": 200, "width_mm": 60, "height_mm": 50, "fields": [
+    {"type": "barcode", "symbology": "pdf417", "data": "ABC", "height_mm": 8}]})
+check("height_mm on ^B7 warns that h is a row height",
+      any(i["code"] == "ROW_HEIGHT" for i in legacy_iss), str(legacy_iss)[:80])
+check("…and is still written as the row height", "^B7N,63" in legacy, legacy)
+
+check("a row height x 4 rows beyond the label is flagged",
+      any(i["code"] == "ROW_TOO_TALL" for i in builder.build_label(
+          {"dpi": 200, "width_mm": 60, "height_mm": 20, "fields": [
+              {"type": "barcode", "symbology": "pdf417", "data": "A",
+               "row_height_dots": 60, "module_width": 2}]})[1]))
+check("no module_width on a stacked code warns about inherited ^BY",
+      any(i["code"] == "BY_UNSET" for i in builder.build_label(
+          {"dpi": 200, "width_mm": 60, "height_mm": 30, "fields": [
+              {"type": "barcode", "symbology": "pdf417", "data": "A"}]})[1]))
+
 # ========================================================= 3. ~HS closed loop
 print("\n-- ~HS: parse the three host-status strings --")
 
