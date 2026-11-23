@@ -137,6 +137,7 @@ python tests/test_package.py    # 包级不变量：数据随包、懒加载边�
 python tests/test_manual.py     # 手册合规：Format 字母 / 页码 / 默认值逐条比对 + 30 余条回归
 python tests/test_edge.py       # ^GF 位图 / 模板变量 / ~HS 闭环（假打印机，无需硬件）
 python tools/android_terminal_test.py --printer <printer-ip>   # 真机闭环：终端自己发字节 + 里程计核对出纸张数
+python tools/android_barcode_matrix.py --host <printer-ip> --serial <adb>   # 逐制式打印 + 拍照解码（见 docs/symbology-matrix.md）
 ```
 
 ## 边界
