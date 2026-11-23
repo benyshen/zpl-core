@@ -100,37 +100,67 @@ def build_feature_payloads(no_image: bool = False) -> tuple[dict[str, str], list
     return files, issues
 
 
+def build_pdf_probe_payloads() -> tuple[dict[str, str], list]:
+    """判定 c/r 是不是元凶：同一张标签三档，只改 c/r 和数据长度。
+
+    D: 短数据 + 写死 6x6（容量 36 码字，短数据够用）
+    E: 47 字符 + 写死 6x6（容量可能不够 -> 打印机整段丢弃，什么都不画）
+    F: 47 字符 + 不写 c/r（由打印机按 1:2 比例自适应）
+    """
+    files: dict[str, str] = {}
+    fields = [
+        {"type": "text", "data": "c/r PROBE  D:short+6x6  E:long+6x6  F:long+auto",
+         "x_mm": 3, "y_mm": 1.5, "size_mm": 2.4},
+
+        {"type": "text", "data": "D", "x_mm": 3, "y_mm": 6, "size_mm": 3},
+        {"type": "barcode", "symbology": "pdf417", "data": "PDF417-OK",
+         "x_mm": 12, "y_mm": 5.5, "module_width": 2, "columns": 6, "rows": 6,
+         "row_height_dots": 10, "security_level": 2,
+         "hv": {"bytes": 32, "header": "D[", "terminator": "]"}},
+
+        {"type": "text", "data": "E", "x_mm": 3, "y_mm": 14, "size_mm": 3},
+        {"type": "barcode", "symbology": "pdf417", "data": PDF_PAYLOAD,
+         "x_mm": 12, "y_mm": 13.5, "module_width": 2, "columns": 6, "rows": 6,
+         "row_height_dots": 10, "security_level": 2,
+         "hv": {"bytes": 96, "header": "E[", "terminator": "]"}},
+
+        {"type": "text", "data": "F", "x_mm": 3, "y_mm": 23, "size_mm": 3},
+        {"type": "barcode", "symbology": "pdf417", "data": PDF_PAYLOAD,
+         "x_mm": 12, "y_mm": 22.5, "module_width": 2,
+         "row_height_dots": 10, "security_level": 2,
+         "hv": {"bytes": 96, "header": "F[", "terminator": "]"}},
+    ]
+    zpl, iss = builder.build_label({"dpi": DPI, "width_mm": 60, "height_mm": 55,
+                                    "fields": fields})
+    files["p_pdf_probe.zpl"] = zpl
+    return files, [("pdf-probe", i) for i in iss]
+
+
 def build_sample_payloads() -> tuple[dict[str, str], list]:
     """QR 与 PDF417 各一条：不同码制、不同数据形态，都带 ^HV 回读。"""
     files: dict[str, str] = {}
 
     # --- QR：放一个真 URL，手机一扫就能验证 ---
-    qr, qi = builder.build_label({"dpi": DPI, "width_mm": 60, "height_mm": 40, "fields": [
+    qr, qi = builder.build_label({"dpi": DPI, "width_mm": 60, "height_mm": 45, "fields": [
         {"type": "text", "data": "QR CODE  ^BQ", "x_mm": 3, "y_mm": 2, "size_mm": 3},
         {"type": "barcode", "symbology": "qrcode", "data": QR_PAYLOAD,
          "x_mm": 3, "y_mm": 8, "scale": 6,
          "hv": {"bytes": 64, "header": "Q[", "terminator": "]"}},
-        {"type": "text", "data": "github.com/benyshen/zpl-core", "x_mm": 3, "y_mm": 31,
+        {"type": "text", "data": "github.com/benyshen/zpl-core", "x_mm": 3, "y_mm": 36,
          "size_mm": 2.4},
     ]})
     files["l4_qr.zpl"] = qr
 
-    # --- PDF417：一条标签放两版，扫不动时能直接对比是参数问题还是纸/碳带问题 ---
-    # 手册 p.79：h 是"一行"的高度，不是整条码高度；模块宽度来自 ^BY（不发就继承打印机状态）。
-    #   A: ^BY2，6 列 x 6 行，行高 12 点 -> 274 x 72 dots（34.8 x 9.1 mm）
-    #   B: ^BY3，6 列 x 6 行，行高 15 点 -> 411 x 90 dots（52.2 x 11.4 mm）
-    pdf, pi = builder.build_label({"dpi": DPI, "width_mm": 60, "height_mm": 50, "fields": [
-        {"type": "text", "data": "PDF417  A:^BY2  B:^BY3", "x_mm": 3, "y_mm": 1.5,
+    # --- PDF417：不写死列/行，让打印机按 1:2 比例自适应 ---
+    # 现场教训（ZR668 fw V86.20.21Z）：c x r 容量不够时，打印机**整段不画**，
+    # 不报错、~HQES 还是 0/0。47 字节塞 6x6(36 码字) 就是一片空白。
+    pdf, pi = builder.build_label({"dpi": DPI, "width_mm": 60, "height_mm": 45, "fields": [
+        {"type": "text", "data": "PDF417  module 2  row 12  sec 4", "x_mm": 3, "y_mm": 2,
          "size_mm": 2.6},
-        {"type": "barcode", "symbology": "pdf417", "data": PDF_PAYLOAD, "x_mm": 3, "y_mm": 6,
-         "module_width": 2, "columns": 6, "rows": 6, "row_height_dots": 12,
-         "security_level": 2, "hv": {"bytes": 96, "header": "P[", "terminator": "]"}},
-        {"type": "text", "data": "A  module 2  6x6  row 12", "x_mm": 3, "y_mm": 15.6,
-         "size_mm": 2.4},
-        {"type": "barcode", "symbology": "pdf417", "data": PDF_PAYLOAD, "x_mm": 3, "y_mm": 22,
-         "module_width": 3, "columns": 6, "rows": 6, "row_height_dots": 15,
-         "security_level": 2},
-        {"type": "text", "data": "B  module 3  6x6  row 15", "x_mm": 3, "y_mm": 34.2,
+        {"type": "barcode", "symbology": "pdf417", "data": PDF_PAYLOAD,
+         "x_mm": 2, "y_mm": 8, "module_width": 2, "row_height_dots": 12,
+         "security_level": 4},
+        {"type": "text", "data": "ZPL-CORE|0.3.0|ZR668|TC201L", "x_mm": 4, "y_mm": 28,
          "size_mm": 2.4},
     ]})
     files["l5_pdf417.zpl"] = pdf
@@ -223,6 +253,61 @@ def reader(local: Path):
     return read
 
 
+def photo_decode(serial: str, *, wait: float = 3.0) -> list[str]:
+    """用终端摄像头拍一张标签，再用 zxing 解码，返回解出的所有条码文本。
+
+    为什么需要这条路：ZR668 (fw V86.20.21Z) 对 ^B7 字段不回 ^HV，所以 PDF417
+    只能靠"从照片里读回来"来证明它真的能被解码。
+    """
+    try:
+        import zxingcpp
+        from PIL import Image
+    except ImportError:
+        print("  (没有 zxing-cpp / Pillow，跳过拍照解码：pip install zxing-cpp pillow)")
+        return []
+    size = adb("shell", "wm size", serial=serial).strip()
+    try:
+        w, h = (int(x) for x in size.split(":")[-1].split("x"))
+    except ValueError:
+        w, h = 1080, 2160
+    adb("shell", "input keyevent KEYCODE_WAKEUP", serial=serial, check=False)
+    adb("shell", "am start -a android.media.action.STILL_IMAGE_CAMERA", serial=serial,
+        check=False)
+    import time
+    time.sleep(wait)
+    adb("shell", f"input tap {w // 2} {int(h * 0.838)}", serial=serial, check=False)
+    time.sleep(2)
+    newest = adb("shell", "ls -t /sdcard/DCIM/Camera | head -1", serial=serial).strip()
+    if not newest:
+        print("  (没找到照片)"); return []
+    local = ROOT / "scratch" / f"photo_{newest}"
+    adb("pull", f"/sdcard/DCIM/Camera/{newest}", str(local).replace("\\", "/"),
+        serial=serial, check=False)
+    if not local.exists():
+        return []
+    img = Image.open(local)
+    W, H = img.size
+    found: list[str] = []
+    tile, step = 1000, 700
+    for y0 in range(0, H, step):
+        for x0 in range(0, W, step):
+            c = img.crop((x0, y0, min(x0 + tile, W), min(y0 + tile, H)))
+            for scale in (1, 2):
+                cc = c if scale == 1 else c.resize((c.width * 2, c.height * 2), Image.LANCZOS)
+                for ang in (0, 180):
+                    im = cc if ang == 0 else cc.rotate(180, expand=True)
+                    try:
+                        for r in zxingcpp.read_barcodes(im):
+                            if r.text and r.text not in found:
+                                found.append(r.text)
+                    except Exception:
+                        pass
+    print(f"  照片 {newest}: 解出 {len(found)} 个条码")
+    for f in found:
+        print(f"    - {f[:80]}")
+    return found
+
+
 def hv_of(raw: bytes, tag: str) -> str | None:
     m = re.search(rf"{re.escape(tag)}\[(.*?)\]", raw.decode("latin-1", "replace"), re.S)
     return m.group(1) if m else None
@@ -312,6 +397,25 @@ def run_status(files, args) -> list:
     return fails
 
 
+def run_pdf(files, args) -> list:
+    """单独打一条 PDF417 探针标签。"""
+    plan = [("ask", "", "00_status.txt"), ("odo", "", "00_odo.txt"),
+            ("send", "p_pdf_probe.zpl", "01_pdf.out"),
+            ("ask", "", "05_status.txt"), ("odo", "", "06_odo.txt")]
+    local = push_and_run(files, plan, args.printer, args.serial)
+    read = reader(local)
+    fails: list[str] = []
+    common_checks(read, "00_status.txt", "05_status.txt", 1, fails)
+    raw = read("01_pdf.out")
+    for tag, label in (("D", "短数据+6x6"), ("E", "47字符+6x6"), ("F", "47字符+auto")):
+        v = hv_of(raw, tag)
+        print(f"  {tag} {label:12s} ^HV: {v!r}")
+    print(f"  原始回包: {raw[:200]!r}")
+    if not hv_of(raw, "F"):
+        fails.append("F（不写 c/r）都没回包，问题不在 c/r")
+    return fails
+
+
 def run_samples(files, args) -> list:
     plan = [("ask", "", "00_status.txt"), ("odo", "", "00_odo.txt"),
             ("send", "l4_qr.zpl", "01_qr.out"),
@@ -330,11 +434,12 @@ def run_samples(files, args) -> list:
         fails.append(f"QR 回读里没有原始数据：{q!r}")
 
     p = hv_of(read("02_pdf.out"), "P")
-    print(f"  PDF417 ^HV 回读: {p!r}")
-    if not p:
-        fails.append("PDF417 没有 ^HV 回包")
-    elif PDF_PAYLOAD not in p:
-        fails.append(f"PDF417 回读里没有原始数据：{p!r}")
+    print(f"  PDF417 ^HV 回读: {p!r}"
+          f"{'（该机型对 ^B7 不回 ^HV，属正常）' if not p else ''}")
+    if args.photo:
+        texts = photo_decode(args.serial)
+        if not any(PDF_PAYLOAD in t for t in texts):
+            fails.append(f"拍照解码里没找到 PDF417 原文（解出：{[t[:30] for t in texts]}）")
     return fails
 
 
@@ -342,10 +447,12 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--printer", default="192.168.28.90")
     ap.add_argument("--serial", default=None, help="adb 序列号（多设备时需要）")
-    ap.add_argument("--mode", choices=("status", "features", "samples", "both"),
+    ap.add_argument("--mode", choices=("status", "features", "samples", "pdf", "both"),
                     default="features")
     ap.add_argument("--dry-run", action="store_true", help="只构建并自检，不碰设备")
     ap.add_argument("--no-image", action="store_true", help="features 模式跳过 ^GF 图片字段")
+    ap.add_argument("--photo", action="store_true",
+                    help="打印后用终端摄像头拍照并解码（2D 码 ^HV 不回包时靠这个验证）")
     args = ap.parse_args()
 
     runs = []
@@ -354,6 +461,9 @@ def main() -> int:
     if args.mode in ("features", "both"):
         f, iss = build_feature_payloads(no_image=args.no_image)
         runs.append(("features", f, iss, run_features))
+    if args.mode == "pdf":
+        f, iss = build_pdf_probe_payloads()
+        runs.append(("pdf", f, iss, run_pdf))
     if args.mode in ("samples", "both"):
         f, iss = build_sample_payloads()
         runs.append(("samples", f, iss, run_samples))

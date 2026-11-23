@@ -197,6 +197,25 @@ check("a row height x 4 rows beyond the label is flagged",
           {"dpi": 200, "width_mm": 60, "height_mm": 20, "fields": [
               {"type": "barcode", "symbology": "pdf417", "data": "A",
                "row_height_dots": 60, "module_width": 2}]})[1]))
+cap_warn, cap_iss = builder.build_label(
+    {"dpi": 200, "width_mm": 60, "height_mm": 45, "fields": [
+        {"type": "barcode", "symbology": "pdf417", "data": "ZPL-CORE|0.3.0|ZR668|TC201L|X|PDF417",
+         "columns": 6, "rows": 6, "security_level": 2, "module_width": 2}]})
+check("over-tight c x r is flagged (printer prints nothing, reports no error)",
+      any(i["code"] == "BC_CAPACITY" for i in cap_iss), str(cap_iss)[:80])
+check("…and the symbol is still emitted for the caller to inspect", "^B7" in cap_warn, cap_warn)
+check("auto rows/columns never trips the capacity guard",
+      not any(i["code"] == "BC_CAPACITY" for i in builder.build_label(
+          {"dpi": 200, "width_mm": 60, "height_mm": 45, "fields": [
+              {"type": "barcode", "symbology": "pdf417", "data": "ZPL-CORE|0.3.0|" * 3,
+               "module_width": 2, "row_height_dots": 12}]})[1]))
+check("a 1x1 grid is an outright capacity error",
+      any(i["code"] == "BC_CAPACITY" and i["severity"] == "error"
+          for i in builder.build_label(
+              {"dpi": 200, "width_mm": 60, "height_mm": 45, "fields": [
+                  {"type": "barcode", "symbology": "pdf417", "data": "0123456789" * 3,
+                   "columns": 2, "rows": 3, "module_width": 2}]})[1]))
+
 check("no module_width on a stacked code warns about inherited ^BY",
       any(i["code"] == "BY_UNSET" for i in builder.build_label(
           {"dpi": 200, "width_mm": 60, "height_mm": 30, "fields": [

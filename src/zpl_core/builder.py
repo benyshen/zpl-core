@@ -341,6 +341,32 @@ def _render_barcode(f: dict, dpi: int, issues: list, default_orient: str = "N",
         put("r", f.get("rows", f.get("row_ratio")), None, "number of rows")
         if f.get("truncate") is not None:
             put("t", _bool(f["truncate"], "N"), ("Y", "N"), "truncate")
+        # Capacity guard. When ^B7 cannot fit the data into c x r the printer does
+        # NOT raise an error — it prints nothing at all for that field (verified on
+        # a ZR668: 47 bytes into 6x6 came out as a blank area, ~HQES reported 0/0).
+        if params.get("c") and params.get("r"):
+            cols, rows = int(params["c"]), int(params["r"])
+            cap = cols * rows
+            nbytes = len(str(f.get("data", "")).encode("utf-8"))
+            sec = int(params.get("s") or 0)
+            ec = 2 if sec == 0 else 2 ** (sec + 1)      # p.79: level s -> 2^(s+1)
+            best = -(-nbytes // 2) + ec                 # text compaction: 2 chars/codeword
+            worst = nbytes + ec                         # byte compaction: 1 byte/codeword
+            if cap < best:
+                issues.append({"severity": "error", "code": "BC_CAPACITY", "field": sym,
+                               "message": f"{spec['name']}: {cols}x{rows} = {cap} codewords "
+                                          f"cannot hold {nbytes} bytes + {ec} EC codewords "
+                                          f"(needs {best}-{worst}). The printer prints NOTHING "
+                                          f"for an over-capacity symbol and reports no error — "
+                                          f"raise columns/rows, drop them (let the printer pick "
+                                          f"the 1:2 aspect) or lower security_level"})
+            elif cap < worst:
+                issues.append({"severity": "warning", "code": "BC_CAPACITY", "field": sym,
+                               "message": f"{spec['name']}: {cols}x{rows} = {cap} codewords vs "
+                                          f"{nbytes} bytes + {ec} EC (needs {best} at best, "
+                                          f"{worst} in byte mode). It fits only if the printer "
+                                          f"can use text compaction; if the symbol comes out "
+                                          f"blank, this is why"})
     elif sym == "micropdf417":
         put("m", f.get("mode"), None, "mode", "error")
     elif sym == "msi":
