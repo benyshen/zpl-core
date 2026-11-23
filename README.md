@@ -136,6 +136,7 @@ python tests/test_engine.py     # 31 组 ZPL 生成断言（不需要打印机�
 python tests/test_package.py    # 包级不变量：数据随包、懒加载边界、命令表与目录一致、无旧命名残留
 python tests/test_manual.py     # 手册合规：Format 字母 / 页码 / 默认值逐条比对 + 30 余条回归
 python tests/test_edge.py       # ^GF 位图 / 模板变量 / ~HS 闭环（假打印机，无需硬件）
+python tools/android_terminal_test.py --printer <printer-ip>   # 真机闭环：终端自己发字节 + 里程计核对出纸张数
 ```
 
 ## 边界
